@@ -1,0 +1,396 @@
+#include <iostream>
+#include <algorithm>
+#include <string>
+#include <vector>
+#include "HashTable.h"
+
+const size_t HashTable::INIT_CAPACITY = 8;
+const double HashTable::LOAD_FACTOR = 0.75;
+
+HashTable::HashTable() : current_capacity(INIT_CAPACITY), current_size(0)
+{
+
+	Table = new DataTable(current_capacity);
+}
+HashTable::HashTable(const HashTable& b) : current_capacity(b.current_capacity), current_size(b.current_size)
+{
+	Table = new DataTable(current_capacity);
+	for (size_t i = 0; i < current_capacity; ++i)
+	{
+		if (nullptr != (*(b.Table))[i])
+		{
+			try
+			{
+				(*Table)[i] = new std::list<std::pair<Key, Value>>;
+			}
+			catch (std::bad_alloc())
+			{
+				for (auto& current_bucket : (*b.Table))
+				{
+					delete current_bucket;
+				}
+				delete Table;
+				throw std::bad_alloc();
+			}
+			for (auto bucketItem : *(*b.Table)[i])
+			{
+				((*Table)[i])->push_back(bucketItem);
+			}
+		}
+	}
+}
+HashTable::~HashTable()
+{
+
+	for (auto current_bucket : *Table)
+	{
+		delete current_bucket;
+	}
+	delete Table;
+	current_capacity = 0;
+	current_size = 0;
+
+}
+size_t HashTable::getHashCode(const Key & key) const
+{
+	size_t hash = 0;
+	for (size_t i = 0; i < key.size(); ++i)
+	{
+		hash += key[i];
+		hash -= (hash << 13) | (hash >> 19);
+	}
+	return hash % current_capacity;
+}
+void HashTable::swap(HashTable& b)
+{
+	std::swap(current_capacity, b.current_capacity);
+	std::swap(current_size, b.current_size);
+	std::swap(Table, b.Table);
+}
+HashTable& HashTable::operator=(const HashTable& b)
+{
+	if (this == &b)
+	{
+		return *this;
+	}
+	DataTable* new_Table = new DataTable;
+	(*new_Table).resize(b.current_capacity);
+	for (size_t i = 0; i < b.current_capacity; ++i)
+	{
+		std::list<std::pair<Key, Value>> * current_bucket_b = (*b.Table)[i];
+		if (nullptr != current_bucket_b)
+		{
+			try
+			{
+				(*new_Table)[i] = new std::list<std::pair<Key, Value>>;
+			}
+			catch (std::bad_alloc)
+			{
+				for (auto& current_bucket : (*new_Table))
+				{
+					delete current_bucket;
+				}
+				delete new_Table;
+				throw std::bad_alloc();
+			}
+			for (auto bucketItem : *current_bucket_b)
+			{
+				((*new_Table)[i])->push_back(bucketItem);
+				//current_size++;
+			}
+		}
+	}
+	delete Table;
+	Table = new_Table;
+	current_size = b.current_size;
+	return *this;
+}
+void HashTable::clear()
+{
+	for (size_t i = 0; i < current_capacity; ++i)
+	{
+		delete (*Table)[i];
+		(*Table)[i] = nullptr;
+	}
+	current_size = 0;
+	current_capacity = INIT_CAPACITY;
+	(*Table).resize(INIT_CAPACITY);
+
+}
+bool HashTable::erase(const Key& key)
+{
+	size_t hash = getHashCode(key);
+	std::list<std::pair<Key, Value>> * current_bucket = (*Table)[hash];
+	if (nullptr != current_bucket)
+	{
+		for (auto i = current_bucket->begin(); i != current_bucket->end(); ++i)
+		{
+			if (key == i->first)
+			{
+				(*current_bucket).erase(i);
+				current_size--;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+inline bool HashTable::insert(const Key& key, const Value& value)
+{
+	if (false == insert_without_incrementing(key, value))
+		return false;
+	++current_size;
+	return true;
+}
+bool HashTable::insert_without_incrementing(const Key& key, const Value& value)
+{
+	if (LOAD_FACTOR < current_size / static_cast<double>(current_capacity))
+	{
+		resize_and_transfer();
+	}
+	size_t hash = getHashCode(key);
+	std::pair<Key, Value> data(key, value);
+
+	if (nullptr == (*Table)[hash])
+	{
+		(*Table)[hash] = new std::list<std::pair<Key, Value>>;
+	}
+	for (auto & item_current_bucket : *((*Table)[hash]))
+	{
+		if (item_current_bucket.first == key)
+		{
+			return false;
+		}
+	}
+	std::list<std::pair<Key, Value>> & current_bucket = *(*Table)[hash];
+	current_bucket.push_back(data);
+
+	return true;
+
+}
+
+void HashTable::resize_and_transfer()
+{
+	current_capacity *= 2;
+	DataTable* tmp_table = Table;
+	Table = new DataTable(current_capacity);
+
+	for (size_t i = 0; i < current_capacity / 2; ++i)
+	{
+		std::list<std::pair<Key, Value>> * current_bucket = (*tmp_table)[i];
+		if (nullptr != current_bucket)
+		{
+			for (auto & item_current_bucket: *current_bucket)
+			{
+				insert_without_incrementing(item_current_bucket.first, item_current_bucket.second);
+
+			}
+		}
+	}
+	delete tmp_table;
+
+}
+bool HashTable::contains(const Key& key) const
+{
+	size_t hash = getHashCode(key);
+	auto current_bucket = (*Table)[hash];
+	if (nullptr == current_bucket)
+	{
+		return false;
+	}
+	for (auto i = current_bucket->cbegin(); i != current_bucket->cend(); ++i)
+	{
+		if (0 == (key).compare(i->first))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+Value& HashTable::operator[](const Key& key)
+{
+	size_t hash = getHashCode(key);
+	std::list<std::pair<Key, Value>> * current_bucket = (*Table)[hash];
+	if (nullptr == current_bucket)
+	{
+		insert(key, Value());
+		return (*this)[key];
+	}
+	for (auto& item_current_bucket: *current_bucket)
+	{
+		if (key == item_current_bucket.first)
+		{
+			return item_current_bucket.second;
+		}
+	}
+	insert(key, Value());
+	return (*this)[key];
+}
+Value& HashTable::at(const Key& key)
+{
+	size_t hash = getHashCode(key);
+	std::list<std::pair<Key, Value>> * current_bucket = (*Table)[hash];
+	if (nullptr != current_bucket)
+	{
+		for (auto & item_current_bucket : *current_bucket)
+		{
+			if (key == item_current_bucket.first)
+			{
+				return item_current_bucket.second;
+			}
+		}
+	}
+	throw std::out_of_range("");
+}
+const Value& HashTable::at(const Key& key) const
+{
+	size_t hash = getHashCode(key);
+	std::list<std::pair<Key, Value>> * current_bucket = (*Table)[hash];
+	if (nullptr != current_bucket)
+	{
+		for (auto & item_current_bucket: *current_bucket) 
+		{
+			if (key == item_current_bucket.first)
+			{
+				return item_current_bucket.second;
+			}
+		}
+	}
+	throw std::out_of_range("");
+}
+size_t HashTable::size() const
+{
+	return current_size;
+}
+bool HashTable::empty() const
+{
+	return 0 == size();
+}
+bool operator==(const HashTable & a, const HashTable & b)
+{
+	if (&a == &b)
+	{
+		return true;
+	}
+	if (a.current_capacity != b.current_capacity || a.current_size != b.current_size)
+	{
+		return false;
+	}
+	for (size_t i = 0; i < a.current_capacity; ++i)
+	{
+		std::list<std::pair<Key, Value>> * current_bucket_b = (*(b.Table))[i];
+		std::list<std::pair<Key, Value>> * current_bucket_a = (*(a.Table))[i];
+		if ((nullptr == current_bucket_a && nullptr != current_bucket_b) || \
+			(nullptr != current_bucket_a && nullptr == current_bucket_a))
+		{
+			return false;
+		}
+		if (nullptr != current_bucket_a && nullptr != current_bucket_b)
+		{
+			bool coincidence = false;
+			for (auto item_current_bucket_a : *current_bucket_a)
+			{
+				for (auto item_current_bucket_b : *current_bucket_b)
+				{
+					if (0 == item_current_bucket_b.first.compare(item_current_bucket_a.first))
+					{
+						if ((item_current_bucket_b.second.weight == item_current_bucket_a.second.weight) && \
+							(item_current_bucket_b.second.age == item_current_bucket_a.second.age))
+						{
+							coincidence = true;
+						}
+					}
+				}
+				if (false == coincidence)
+				{
+					return false;
+				}
+				coincidence = false;
+			}
+			return true;
+		}
+	}
+	return true;
+
+}
+bool operator!=(const HashTable & a, const HashTable & b)
+{
+	return !(a == b);
+}
+
+HashTable::const_iterator::const_iterator(DataTable* table, size_t bucketNo, ListIterator listIterator)
+: m_table(table), m_bucketNo(bucketNo), m_listIterator(listIterator)
+{}
+HashTable::const_iterator::~const_iterator()
+{}
+
+HashTable::const_iterator& HashTable::const_iterator::operator++()
+{
+	++m_listIterator;
+	if (m_listIterator == (*m_table)[m_bucketNo]->end())
+	{
+		for (size_t i = m_bucketNo + 1; i < m_table->size(); ++i)
+		{
+			if (nullptr != (*m_table)[i])
+			{
+				m_listIterator = (*m_table)[i]->begin();
+				m_bucketNo = i;
+				return *this;
+			}
+		}
+		m_listIterator = ListIterator();
+		m_bucketNo = m_table->size();
+	}
+	return *this;
+
+}
+HashTable::const_iterator HashTable::const_iterator::operator++(int)
+{
+	const_iterator tmp((*this).m_table, (*this).m_bucketNo, (*this).m_listIterator);
+	(*this)++;
+	return tmp;
+}
+bool HashTable::const_iterator::operator==(const const_iterator& i) const
+{
+	if (this == &i)
+	{
+		return true;
+	}
+	if (m_bucketNo == m_table->size() &&
+		m_bucketNo == i.m_bucketNo &&
+		m_table == i.m_table)
+	{
+		return true;
+	}
+	if (m_table == i.m_table &&
+		m_bucketNo == i.m_bucketNo &&
+		m_listIterator == m_listIterator)
+	{
+		return true;
+	}
+	return false;
+
+}
+bool HashTable::const_iterator::operator!=(const const_iterator& i) const
+{
+	return !(*this == i);
+}
+const Record& HashTable::const_iterator::operator*() const
+{
+	return *m_listIterator;
+}
+HashTable::const_iterator HashTable::begin() const
+{
+	for (size_t i = 0; i < current_capacity; ++i)
+	{
+		if (nullptr != (*Table)[i])
+		{
+			return HashTable::const_iterator(Table, i, (*Table)[i]->begin());
+		}
+	}
+	return end();
+}
+HashTable::const_iterator HashTable::end() const
+{
+	return HashTable::const_iterator(Table, current_capacity, ListIterator());
+}
