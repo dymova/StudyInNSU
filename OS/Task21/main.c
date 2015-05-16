@@ -1,57 +1,74 @@
+#define _XOPEN_SOURCE  500
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <termios.h>
+#include <unistd.h>
 
-typedef void (*sighandler_t)(int);
-sighandler_t sigset(int sig, sighandler_t disp);
+#define DELETE 063
 
-sig_atomic_t sigInt = 0;
 sig_atomic_t sigQuit = 0;
-int count = 0;
 
 void sigcatch(int sig) {
-
-    if(sig == SIGQUIT) {
-        sigInt = 1;
+    if (sig == SIGQUIT) {
+        sigQuit = 1;
     }
-    if(sig == SIGINT) {
-        sigInt = 1;
-    }
-//    if (sig == SIGQUIT) {
-//        printf("\n^C was pressed %d times\n", count);
-//        exit(0);
-//    }
-//    count++;
-//    printf("\a");
 }
 
-void handleSigInt() {
-    count++;
-    printf("\a");
-    sigInt = 0;
-    signal(SIGINT, sigcatch);
-}
-
-void handleSigQuit() {
-    printf("\n^C was pressed %d times\n", count);
+void handleSigQuit(int count) {
+    printf("\nSignal sounded %d times\n", count);
     exit(EXIT_SUCCESS);
 }
 
-int main()
-{
-//    sigset(SIGINT, sigcatch);
-//    sigset(SIGQUIT, sigcatch);
-    signal(SIGINT, sigcatch);
-    signal(SIGQUIT, sigcatch);
+int main() {
+    sigset_t mask;
+    if(sigfillset(&mask) == -1) {
+        perror("sigfillset");
+        exit(EXIT_FAILURE);
+    }
+    if(sigdelset(&mask, SIGQUIT) == -1)
+    {
+        perror("sigdelset SIGQUIT");
+        exit(EXIT_FAILURE);
+    }
+    if(sigprocmask(SIG_SETMASK, &mask, NULL) == -1) {
+        perror("sigprocmask");
+        exit(EXIT_FAILURE);
+    }
 
-    printf("piii \a");
+    if(sigset(SIGQUIT, sigcatch) == (__sighandler_t) -1) {
+        perror("sigset");
+        exit(EXIT_FAILURE);
+    }
 
+    struct termios ttyNew;
+    struct termios ttyCurrent;
+    if(tcgetattr(STDIN_FILENO, &ttyCurrent) == -1) {
+        perror("tcgetattr");
+        exit(EXIT_FAILURE);
+    }
+    ttyNew = ttyCurrent;
+    ttyNew.c_lflag &= ~(ECHO | ICANON);
+    ttyNew.c_cc[VMIN] = 1;
+    ttyNew.c_cc[VTIME] = 0;
+    if(tcsetattr(STDIN_FILENO, TCSANOW, &ttyNew) == -1) {
+        perror("tcsetattr");
+        exit(EXIT_FAILURE);
+    }
+
+    char c;
+    int count = 0;
     for(;;) {
-        if(sigInt) {
-            handleSigInt();
-        }
         if(sigQuit) {
-            handleSigQuit();
+            if(tcsetattr(STDIN_FILENO, TCSANOW, &ttyCurrent) == -1) {
+                printf("Error. Settings of tty not restore.");
+                exit(EXIT_FAILURE);
+            }
+            handleSigQuit(count);
+        }
+        if((c = getchar()) == DELETE){
+            count++;
+            printf("\a%d\n", count);
         }
     }
 

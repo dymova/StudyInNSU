@@ -15,7 +15,7 @@ int main() {
     }
 
     for(int i = 0; i < N; i++) {
-        fprintf(fp[0], "%d\n", rand() % N);
+        fprintf(fp[0], "%d ", rand() % N);
     }
     fprintf(fp[0], "\n");
     fclose(fp[0]);
@@ -23,7 +23,7 @@ int main() {
     for(int i = 0; i < N / 10; i++) {
         int x;
         for(int j = 0; j < 10; j++) {
-            fscanf(fp[1], "%d\n", &x);
+            fscanf(fp[1], "%d ", &x);
             printf("%d ", x);
         }
         printf("\n ");

@@ -10,15 +10,9 @@ typedef struct list
     char* data;
 }List;
 
-List* createNode()
-{
-    List* list = (List*) malloc(sizeof(List));
-    return list;
-}
-
 char* handleBuff(char* buffer)
 {
-    int lenght = strlen(buffer);
+    int lenght = (int) strlen(buffer);
     char* str = (char*) malloc(sizeof(char) * (lenght));
     strncpy(str, buffer, lenght);
     str[lenght - 1] = '\0';
@@ -31,7 +25,6 @@ int addStringToList(char* buffer, List** head)
     {
         *head = (List*) malloc (sizeof(List));
         (*head)->data = handleBuff(buffer);
-        //(*head)->data = buffer;
         (*head)->next = NULL;
     }
     else
@@ -43,7 +36,6 @@ int addStringToList(char* buffer, List** head)
         }
         List * newNode = (List*)malloc(sizeof(List));
         newNode->data = handleBuff(buffer);
-        //newNode->data = buffer;
         newNode->next = NULL;
         tail->next = newNode;
 
@@ -61,7 +53,7 @@ void printList(List* head)
         }
     }
 }
-void realeseMemory(List** head)
+void releaseMemory(List **head)
 {
     List* currentNode = *head;
     if(NULL != currentNode)
@@ -85,6 +77,6 @@ int main()
         addStringToList(buffer, &head);
     }
     printList(head);
-    realeseMemory(&head);
+    releaseMemory(&head);
     return EXIT_SUCCESS;
 }

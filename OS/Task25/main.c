@@ -11,11 +11,14 @@ int main() {
     int fd[2];
     if (pipe(fd) == -1) {
         perror("pipe");
+        close(fd[0]);
+        close(fd[1]);
         exit(EXIT_FAILURE);
     }
 
     pid_t pid;
     if((pid = fork()) == -1) {
+
         perror("fork");
         exit(EXIT_FAILURE);
     }
@@ -28,6 +31,7 @@ int main() {
             close(fd[1]);
             exit(EXIT_FAILURE);
         }
+        close(fd[1]);
     } else {
         char message[MAX_MESSAGE_SIZE];
         close(fd[1]);
@@ -36,14 +40,11 @@ int main() {
             close(fd[0]);
             exit(EXIT_FAILURE);
         }
+        close(fd[0]);
         int length = strlen(message);
-
         for (int i = 0; i < length; i++) {
             putchar(toupper(message[i]));
         }
     }
-
-    close(fd[0]);
-    close(fd[1]);
     return EXIT_SUCCESS;
 }

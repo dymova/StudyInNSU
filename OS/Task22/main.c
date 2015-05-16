@@ -1,114 +1,99 @@
-#include <stdlib.h>
+#define _XOPEN_SOURCE  500
 #include <stdio.h>
-#include <signal.h>
+#include <stdlib.h>
 #include <unistd.h>
+#include <sys/time.h>
+#include <signal.h>
 #include <errno.h>
-#include <string.h>
-#include <fcntl.h>
 
-#define MAX_BUF_SIZE 100
+#define BUF_SIZE 1024
+#define TIME_OUT 1
 
-extern int errno;
-#define TIMEOUT 1
-typedef struct List List;
-struct List {
+typedef struct List {
     FILE * file;
+    struct List * prev;
+    struct List * next;
+}List;
 
-    List * prev;
-    List * next;
-};
-
-List * list_create(FILE * file) {
-    List * list = malloc(sizeof(List));
-
+List* createList(FILE *file) {
+    List * list = (List*) malloc(sizeof(List));
     list->file = file;
     list->prev = NULL;
     list->next = NULL;
-
     return list;
 }
 
-List * list_insert(List * current, List * node) {
-
-    node->next = current->next;
-    node->next->prev = node;
-    node->prev = current;
-    current->next = node;
-    return node;
+List* addToList(List *current, FILE* file) {
+    List*newNode = createList(file);
+    newNode->next = current->next;
+    newNode->next->prev = newNode;
+    newNode->prev = current;
+    current->next = newNode;
+    return newNode;
 }
 
-List * list_remove(List * list) {
+List* removeFromList(List *list) {
     if (list->next == list || list->prev == list) {
         return NULL;
     }
-
-    list->next->prev = list->prev;
     list->prev->next = list->next;
+    list->next->prev = list->prev;
     free(list);
     return list->prev;
 }
-int flag;
+
+sig_atomic_t sigAlarm = 0;
 void sigalarm(int sig) {
     if (sig == SIGALRM) {
-        flag = 1;
+        sigAlarm = 1;
     }
 }
 
-int main(int argc, char *argv[]) {
-    char pathToFile[MAX_BUF_SIZE];
-    if (argc < 2) {
-        printf("usearg: %s <pathToFile>\n", argv[0]);
-        fgets(pathToFile, MAX_BUF_SIZE, stdin);
-        pathToFile[strlen(pathToFile) - 1] = '\0';
-    } else {
-        strcpy(pathToFile, argv[1]);
-    }
+int main(int argc, char** argv) {
 
-    for (int i = 1; i < argc; i++) {
-        int handle;
-        if((handle = open(pathToFile, O_RDONLY)) == -1) {
-            perror(pathToFile);
+    if (argc < 2) {
+        printf("Not enough args.\n"
+                "The program takes the names of one or more files.\n");
+        exit(EXIT_FAILURE);
+    }
+    FILE** files = (FILE**) malloc(argc * sizeof(FILE*));
+    for(int i = 1; i < argc; i++) {
+        if ((files[i - 1] = fopen(argv[i], "r")) == NULL) {
+            perror(argv[i]);
+            for(int j =0; j < i; j++){
+                fclose(files[j]);
+            }
             exit(EXIT_FAILURE);
         }
-
     }
 
-
-
-    List * root = NULL;
-    List * current;
-    int handle;
-    root = list_create(fopen(argv[1], "r"));
-    root->next = root->prev = root;
+    List* root;
+    List* current;
+    root = createList(files[0]);
+    root->next = root;
+    root->prev = root;
     current = root;
-    for (int i = 2; i < argc; i++) {
-        current = list_insert(current, list_create(fopen(argv[i], "r")));
+    for (int i = 1; i < argc - 1; i++) {
+        current = addToList(current, files[i]);
     }
     current = root;
     sigset(SIGALRM, sigalarm);
-    while (1) {
-
-        char buffer[1024];
-        alarm(TIMEOUT);
-        if (fgets(buffer, 1024, current->file) != NULL) {
+    for(;;) {
+        char buffer[BUF_SIZE];
+        alarm(TIME_OUT);
+        if (fgets(buffer, BUF_SIZE, current->file) != NULL) {
             puts(buffer);
         } else {
-            if (flag && errno == EINTR) {
-                flag = 0;
-                printf("timeout[%d]\n", fileno(current->file));
+            if (sigAlarm && errno == EINTR) {
+                sigAlarm = 0;
             } else {
-                printf("closed[%d]\n", fileno(current->file));
                 fclose(current->file);
-                current = list_remove(current);
-                if (current == NULL) {
-                    printf("exit\n");
-                    return 0;
+                if((current = removeFromList(current)) == NULL) {
+                    return EXIT_SUCCESS;
                 }
             }
         }
-
         current = current->next;
     }
-
-    return 0;
+    return EXIT_SUCCESS;
 }
