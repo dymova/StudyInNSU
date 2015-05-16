@@ -1,0 +1,4 @@
+	mpirun -np 1 ./main
+
+mpiexec.mpich -l -n 4 ./main
+
