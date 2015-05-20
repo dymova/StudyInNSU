@@ -4,26 +4,12 @@
 #include <sys/times.h>
 #include <time.h>
 #include <unistd.h>
+#include <math.h>
 
-const int N = 17;
+const int N = 2000;
 #define SEND_V 0
 #define EPS 0.00001
 
-void fillingAB(double* AB, int processNumber, int rank)
-{
-    for (int i = 0; i < N; i++)
-    {
-        for(int j = 0; j < N; j++)
-        {
-            if((rank + processNumber*i) == j)
-                AB[i*(N+1) + j] = 2.0;
-            else
-                AB[i*(N+1) + j] = 1.0;
-        }
-        AB[i*(N+1) + N] = N + 1.0;
-    }
-
-}
 void fillingB(double* b, int size)
 {
     for(int i = 0; i < size; ++i)
@@ -64,6 +50,7 @@ int main(int argc, char** argv)
     MPI_Comm_size (MPI_COMM_WORLD, &processNumber);
     MPI_Comm_rank (MPI_COMM_WORLD, &rank);
 
+
     //compute count lines in parts
     int bigPartNumber = N % processNumber;
     int rowsInPart = N / processNumber;
@@ -86,6 +73,7 @@ int main(int argc, char** argv)
         countLine[i] = rowsInPart;
         displs[i] = displs[i - 1] + countLine[i - 1];
     }
+
     //filling start value
     int lineCount = countLine[rank];
     int lenghtOfPartA = lineCount * (N+1);
@@ -99,13 +87,23 @@ int main(int argc, char** argv)
     {
         fprintf(stderr, "not enought memory");
     }
-    fillingAB(AB, processNumber, rank);
+    for (int i = 0; i < countLine[rank]; i++)
+    {
+        for(int j = 0; j < N; j++)
+        {
+            if((rank + processNumber*i) == j)
+                AB[i*(N+1) + j] = 2.0;
+            else
+                AB[i*(N+1) + j] = 1.0;
+        }
+        AB[i*(N+1) + N] = N + 1.0;
+    }
     long clocks_per_sec = sysconf(_SC_CLK_TCK);
     long clocks;
     struct tms start, end;
     times(&start);
 
-    for(int k = 0; k < N; k++)
+    for(int k = 0; k < countLine[processNumber - 1]; k++)
     {
         for(int p = 0; p < processNumber; p++)
         {
@@ -119,7 +117,7 @@ int main(int argc, char** argv)
                 for(int j = 0; j <= N; j++)
                     buf[j] = AB[k*(N+1) + j];
                 MPI_Bcast(buf,N + 1, MPI_DOUBLE, p, MPI_COMM_WORLD);
-                for(int i = k+1; i < N; i++)
+                for(int i = k+1; i < countLine[rank]; i++)
                 {
                     for(int j = N; j >= processNumber*k+p; j--)
                         AB[i*(N+1) + j] -= AB[i*(N+1) + processNumber*k+p]*AB[k*(N+1) + j];
@@ -129,7 +127,7 @@ int main(int argc, char** argv)
             else if(rank < p)
             {
                 MPI_Bcast(buf,N+1,MPI_DOUBLE, p, MPI_COMM_WORLD);
-                for(int i = k+1; i < N; i++)
+                for(int i = k+1; i < countLine[rank]; i++)
                 {
                     for(int j = N; j >= processNumber*k+p; j--)
                         AB[i*(N+1) + j] -= AB[i*(N+1) + processNumber*k+p]*buf[j];
@@ -138,7 +136,7 @@ int main(int argc, char** argv)
             else if(rank > p)
             {
                 MPI_Bcast(buf, N+1, MPI_DOUBLE, p, MPI_COMM_WORLD);
-                for(int i = k; i < N; i++)
+                for(int i = k; i < countLine[rank]; i++)
                 {
                     for(int j= N;j >= processNumber*k+p;j--)
                         AB[i*(N+1) + j] -= AB[i*(N+1) + processNumber*k+p]*buf[j];
@@ -146,38 +144,78 @@ int main(int argc, char** argv)
             }
         }
     }
+    if(bigPartNumber != 0)
+    for(int p = 0; p < bigPartNumber; p++)
+    {
+        int k = rowsInBigPart - 1;
+        if(rank == p)
+        {
+            double m = 1.0/AB[k*(N+1) + processNumber*k+p];
+            for(int j = N; j >= processNumber*k+p; j--)
+                AB[k*(N+1) + j] *= m;
+            for(int j = 0; j <= N; j++)
+                buf[j] = AB[k*(N+1) + j];
+            MPI_Bcast(buf,N + 1, MPI_DOUBLE, p, MPI_COMM_WORLD);
+            for(int i = k+1; i < countLine[rank]; i++)
+            {
+                for(int j = N; j >= processNumber*k+p; j--)
+                    AB[i*(N+1) + j] -= AB[i*(N+1) + processNumber*k+p]*AB[k*(N+1) + j];
+            }
+
+        }
+
+        else if(rank < p)
+        {
+            MPI_Bcast(buf,N+1,MPI_DOUBLE, p, MPI_COMM_WORLD);
+            for(int i = k+1; i < countLine[rank]; i++)
+            {
+                for(int j = N; j >= processNumber*k+p; j--)
+                    AB[i*(N+1) + j] -= AB[i*(N+1) + processNumber*k+p]*buf[j];
+            }
+        }
+        else if(rank > p)
+        {
+            MPI_Bcast(buf, N+1, MPI_DOUBLE, p, MPI_COMM_WORLD);
+            for(int i = k; i < countLine[rank]; i++)
+            {
+                for(int j= N;j >= processNumber*k+p;j--)
+                    AB[i*(N+1) + j] -= AB[i*(N+1) + processNumber*k+p]*buf[j];
+            }
+        }
+    }
 //    обратный ход
     double R ;
     //обработка остатка
-            for(int p = bigPartNumber-1; p >=0; p--)
+    for(int p = bigPartNumber-1; p >=0; p--)
+    {
+        int k = rowsInBigPart - 1;
+
+        if(rank == p)
+        {
+            R = AB[k*(N+1) + N];
+            MPI_Bcast(&R,1,MPI_DOUBLE,p,MPI_COMM_WORLD);
+            for(int i = k-1; i >= 0; i--)
             {
-                int k = rowsInBigPart - 1;
-                if(rank == p)
-                {
-                    R = AB[k*(N+1) + N];
-                    MPI_Bcast(&R,1,MPI_DOUBLE,p,MPI_COMM_WORLD);
-                    for(int i = k-1; i >= 0; i--)
-                    {
-                        AB[i*(N+1) + N]-= AB[k*(N+1) + N]*AB[i*(N+1) + processNumber*k + p];
-                    }
-                }
-                else if(rank < p)
-                {
-                    MPI_Bcast(&R,1,MPI_DOUBLE,p,MPI_COMM_WORLD);
-                    for(int i = lineCount-1; i >= 0; i--)
-                    {
-                        AB[i*(N+1) + N] -= R*AB[i*(N+1) + N  - 1];
-                    }
-                }
-                else if(rank > p)
-                {
-                    MPI_Bcast(&R,1,MPI_DOUBLE,p,MPI_COMM_WORLD);
-                    for(int i = k-1; i >= 0; i--)
-                    {
-                        AB[i*(N+1) + N] -= R*AB[i*(N+1) + N  - 1];
-                    }
-                }
+                AB[i*(N+1) + N]-= AB[k*(N+1) + N]*AB[i*(N+1) + processNumber*k + p];
             }
+        }
+        else if(rank < p)
+        {
+            MPI_Bcast(&R,1,MPI_DOUBLE,p,MPI_COMM_WORLD);
+            for(int i = lineCount-1; i >= 0; i--)
+            {
+                AB[i*(N+1) + N] -= R*AB[i*(N+1) + N  - 1];
+            }
+        }
+        else if(rank > p)
+        {
+            MPI_Bcast(&R,1,MPI_DOUBLE,p,MPI_COMM_WORLD);
+            for(int i = k-1; i >= 0; i--)
+            {
+                AB[i*(N+1) + N] -= R*AB[i*(N+1) + N  - 1];
+            }
+        }
+    }
     //основная часть
     for(int k = rowsInPart-1; k >= 0; k--)
     {
@@ -207,7 +245,7 @@ int main(int argc, char** argv)
         }
     }
 
-    //-------------------
+////    -------------------
 //        if(rank == 0){
 //            printf("-------%d---------------\n", lineCount);
 //            for(int i = 0; i < lineCount; i++){
@@ -228,31 +266,30 @@ int main(int argc, char** argv)
 //                printDoubleVector(&AB[(N+1)*i], N + 1, rank);
 //            }
 //        }
-    //---------------
+////    ---------------
     times(&end);
     clocks = end.tms_utime - start.tms_utime;
     printf("Time taken: %lf sec.\n", (double)clocks / clocks_per_sec);
     //check
-      int badSolution = 0;
-      for(int j = 0; j < processNumber; j++)
-      {
-          for(int i = 0; i < lineCount; ++i)
-          {
-              if(1 - AB[i*(N+1) + N] > EPS)
-              {
-                  printf("%d \n", i);
-                  badSolution++;
-              }
-          }
-          if(badSolution)
-          {
-               printf("Wrong solution!\n");
-          }
-          else
-          {
-              printf("Right solution!\n");
-          }
-      }
+    int badSolution = 0;
+    for(int j = 0; j < processNumber; j++)
+    {
+        for(int i = 0; i < lineCount; ++i)
+        {
+            if(fabs(1.0 - AB[i*(N+1) + N]) > EPS)
+            {
+                badSolution++;
+            }
+        }
+    }
+    if(badSolution)
+    {
+         printf("Wrong solution!\n");
+    }
+    else
+    {
+        printf("Right solution!\n");
+    }
     return EXIT_SUCCESS;
 }
 

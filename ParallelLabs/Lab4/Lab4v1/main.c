@@ -1,13 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <mpi.h>
-
+#include <math.h>
 #include <sys/times.h>
 #include <time.h>
 #include <unistd.h>
 
 
-const int N = 5;
+const int N = 2000;
 #define SEND_V 0
 #define EPS 0.00001
 
@@ -99,10 +99,11 @@ int main(int argc, char** argv)
     double* AB;
     if((AB = (double*) malloc(lenghtOfPartA * sizeof(double))) == NULL)
     {
-        fprintf(stderr, "bot enought memory");
+        fprintf(stderr, "not enought memory");
     }
     double* buf = (double*) malloc((N+1) * sizeof(double));
     fillingAB(AB, displs[rank], lineCount);
+
     long clocks_per_sec = sysconf(_SC_CLK_TCK);
     long clocks;
     struct tms start, end;
@@ -120,17 +121,18 @@ int main(int argc, char** argv)
             if(rank == p)
             {
                 double m = 1.0/AB[(N+1)*k + (displs[p]+k)];
-                for(int j = N; j >= k; j--)
+                for(int j = N; j >= k + displs[p]; j--)
                 {
                     AB[k*(N+1) + j] *= m;
                 }
+
                 for(int d = p+1; d < processNumber; d++)
                 {
                     MPI_Send(&AB[k*(N+1)], N+1, MPI_DOUBLE, d, SEND_V, MPI_COMM_WORLD);
                 }
-                for(int i = k+1; i < N; i++)
+                for(int i = k+1; i < countLine[p]; i++)
                 {
-                    for(int j = N; j >= k; j--)
+                    for(int j = N; j >= k ; j--)
                     {
                       AB[i*(N+1) + j] -= AB[i*(N+1) + (displs[p]+k)]*AB[(k)*(N+1) + j];
                     }
@@ -147,11 +149,12 @@ int main(int argc, char** argv)
                     }
                 }
             }
+
         }
 
     }
+
     /* Обратный ход */
-    /* Циклы по p и k аналогичны, как и при прямом ходе. */
     int M = N;
     for(int p = processNumber-1; p >= 0; p--)
     {
@@ -208,27 +211,26 @@ int main(int argc, char** argv)
      times(&end);
      clocks = end.tms_utime - start.tms_utime;
      printf("Time taken: %lf sec.\n", (double)clocks / clocks_per_sec);
+
      int badSolution = 0;
      for(int j = 0; j < processNumber; j++)
      {
          for(int i = 0; i < lineCount; ++i)
          {
-             if(1 - AB[i*(N+1) + N] > EPS)
+             if(fabs(1.0 - AB[i*(N+1) + N]) > EPS)
              {
-                 printf("%d \n", i);
                  badSolution++;
              }
          }
-         if(badSolution)
-         {
-              printf("Wrong solution!\n");
-         }
-         else
-         {
-             printf("Right solution!\n");
-         }
      }
-//    MPI_Finalize();
+     if(badSolution)
+     {
+          printf("Wrong solution!\n");
+     }
+     else
+     {
+         printf("Right solution!\n");
+     }
     return EXIT_SUCCESS;
 }
 
