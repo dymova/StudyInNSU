@@ -1,16 +1,18 @@
 import java.io.*;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Scanner;
 
 public class Server {
-    private static final String  ENDING_MESSAGE = "End of file with quotes.\n";
+    private static final String ENDING_MESSAGE = "End of file with quotes.\n";
     private static final String USAGE = "Usage: java Server <port>";
     private static final int BUFSIZE = 1024;
 
 
     public static void main(String[] args) {
-        if(args.length != 1) {
+        if (args.length != 1) {
             throw new IllegalArgumentException(USAGE);
         }
 
@@ -25,27 +27,25 @@ public class Server {
         try (BufferedReader reader = new BufferedReader(new FileReader(pathToFile));
              DatagramSocket socket = new DatagramSocket(port)) {
 
-            byte[] receiveData = new byte[BUFSIZE];
-            DatagramPacket receivedPacket = new DatagramPacket(receiveData, receiveData.length);
 
-            for(;;) {
+            List<String> quotes = new ArrayList<>();
+            String message = reader.readLine();
+
+            while (message != null) {
+                quotes.add(message);
+                message = reader.readLine();
+            }
+
+            for (String str : quotes) {
+                byte[] receiveData = new byte[BUFSIZE];
+                DatagramPacket receivedPacket = new DatagramPacket(receiveData, receiveData.length);
                 socket.receive(receivedPacket);
 
-                String message = reader.readLine();
-                if (message == null) {
-                    message = ENDING_MESSAGE;
-                    byte[] sendData = message.getBytes();
-                    DatagramPacket sendPacket = new DatagramPacket(sendData,
-                            sendData.length, receivedPacket.getAddress(), receivedPacket.getPort());
-                    socket.send(sendPacket);
-                    break;
-                }
-                byte[] sendData = message.getBytes();
+                byte[] sendData = str.getBytes();
                 DatagramPacket sendPacket = new DatagramPacket(sendData,
                         sendData.length, receivedPacket.getAddress(), receivedPacket.getPort());
                 socket.send(sendPacket);
-
-                System.out.println(receivedPacket.getAddress() + ":v" + message);
+                System.out.println(receivedPacket.getAddress() + ": " + str);
             }
 
 

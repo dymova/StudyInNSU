@@ -21,8 +21,10 @@ public class Client {
             socket.setSoTimeout(TIME_OUT);
 
             byte[] sendData = PING.getBytes();
+
             byte[] receiveData = new byte[BUFSIZE];
             DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
+
             int lostPacketCount = 0;
 
             for (int i = 0; i < messageCount; i++) {
@@ -33,13 +35,20 @@ public class Client {
 
                 try {
                     socket.receive(receivePacket);
+                    long timeReceive = System.currentTimeMillis();
+                    long delay = timeReceive - timeSend;
+                    String receiveMessage = new String(receivePacket.getData(), 0, receivePacket.getLength());
+                    if(!receiveMessage.equals(PONG)){
+                        lostPacketCount++;
+                        continue;
+                    }
+                    System.out.println("delay=" + delay + " ms");
+
                 } catch (SocketTimeoutException e) {
                     lostPacketCount++;
                     System.out.println("Packet was lost.");
                 }
-                long timeReceive = System.currentTimeMillis();
-                long delay = timeReceive - timeSend;
-                System.out.println("delay=" + delay + " ms");
+
             }
             System.out.println(lostPacketCount + " packet loss.");
 

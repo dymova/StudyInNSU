@@ -36,7 +36,7 @@ public class Client {
 
             DatagramPacket receivedPacket = new DatagramPacket(receiveData, receiveData.length);
             socket.receive(receivedPacket);
-            System.out.println(new String(receiveData));
+            System.out.println(new String(receiveData, 0 , receiveData.length));
         } catch (IOException e) {
             e.printStackTrace();
         }

@@ -6,6 +6,7 @@ public class Server {
     private static final String USAGE = "Usage: java Server <port>";
     private static final int BUFSIZE = 512;
     private static final String PONG = "pong";
+    private static final String PING = "ping";
 
 
     public static void main(String[] args) {
@@ -24,11 +25,17 @@ public class Server {
 
             for (; ; ) {
                 socket.receive(packet);
-                byte[] sendData = PONG.getBytes();
-                DatagramPacket sendPacket = new DatagramPacket(sendData,
-                        sendData.length, packet.getAddress(), packet.getPort());
-                socket.send(sendPacket);
-                System.out.println("send answer");
+                String receiveMessage = new String(packet.getData(), 0, packet.getLength());
+                if (receiveMessage.equals(PING)) {
+                    System.out.println("receive: " + receiveMessage);
+                    byte[] sendData = PONG.getBytes();
+                    DatagramPacket sendPacket = new DatagramPacket(sendData,
+                            sendData.length, packet.getAddress(), packet.getPort());
+                    socket.send(sendPacket);
+
+                    System.out.println("send:" + PONG);
+                }
+
             }
         } catch (IOException e) {
             e.printStackTrace();
