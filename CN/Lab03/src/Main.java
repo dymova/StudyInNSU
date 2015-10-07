@@ -46,24 +46,26 @@ public class Main {
             for (;;) {
                 socket.receive(receivePacket);
                 String receiveMessage = new String(receivePacket.getData(), 0, receivePacket.getLength());
-                if (receiveMessage.equals(REQUEST_ANSWER)) {
-                    copies.add(receivePacket.getAddress());
-                } else if (receiveMessage.equals(STARTING_MESSAGE)){
-                    copies.add(receivePacket.getAddress());
-                    byte[] responseMessageData = REQUEST_ANSWER.getBytes();
-                    DatagramPacket responsePacket = new DatagramPacket(responseMessageData,
-                            responseMessageData.length, broadcastAddress, port);
-                    socket.send(responsePacket);
-                } else if (receiveMessage.equals(FINAL_MESSAGE)) {
-                    copies.remove(receivePacket.getAddress());
-                } else {
-                    continue;
+                switch (receiveMessage) {
+                    case REQUEST_ANSWER:
+                        copies.add(receivePacket.getAddress());
+                        break;
+                    case STARTING_MESSAGE:
+                        copies.add(receivePacket.getAddress());
+                        byte[] responseMessageData = REQUEST_ANSWER.getBytes();
+                        DatagramPacket responsePacket = new DatagramPacket(responseMessageData,
+                                responseMessageData.length, broadcastAddress, port);
+                        socket.send(responsePacket);
+                        break;
+                    case FINAL_MESSAGE:
+                        copies.remove(receivePacket.getAddress());
+                        break;
+                    default:
+                        continue;
                 }
                 System.out.println(receiveMessage);
                 System.out.println("Current copies:");
-                for (InetAddress copy : copies) {
-                    System.out.println(copy);
-                }
+                copies.forEach(System.out::println);
                 System.out.println("Total: " + copies.size());
             }
         } catch (IOException e) {

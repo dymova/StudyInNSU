@@ -34,6 +34,5 @@ int main(int argc, char* argv[]) {
     }
     printf("\nCancelled\n");
 
-    pthread_exit(NULL);
     return (EXIT_SUCCESS);
 }

@@ -4,49 +4,39 @@
 #include <string.h>
 
 const int BUFFER_SIZE = 256;
+const int THREAD_COUNT = 4;
 
 void* thread_body(void* param) {
-    char** test_string = (char**)param;
+    struct timespec time;
+    unsigned int seed = (unsigned int) time.tv_nsec;
+    clock_gettime(NULL, &time);
+    int index = rand_r(&seed) % THREAD_COUNT;
+//    unsigned long int index = (unsigned long int) pthread_self() % THREAD_COUNT;
+    char** test_string = (char**) param;
+    test_string += index;
+
     while(NULL != *test_string){
-        printf("%s\n", *test_string);
+        printf("%s ", *test_string);
         test_string++;
     }
+    printf("\n");
     pthread_exit(NULL);
 }
 
-void error_handler(int code, char** argv){
-    char buf[BUFFER_SIZE];
-    strerror_r(code, buf, sizeof buf);
-    fprintf(stderr, "%s: creating thread: %s\n", argv[0], buf);
-}
 
 int main(int argc, char *argv[]) {
-    static char* param_1[]={(char *) "Thread 1 string 1", (char *) "Thread 1 string 2", NULL};
-    static char* param_2[]={(char *) "Thread 2 string 1", (char *) "Thread 2 string 2", NULL};
-    static char* param_3[]={(char *) "Thread 3 string 1", (char *) "Thread 3 string 2", NULL};
-    static char* param_4[]={(char *) "Thread 4 string 1", (char *) "Thread 4 string 2", NULL};
+    static char* param[]={(char *) "string 1", (char *) "string 2", (char *) "string 3", (char *) "string 4", (char *) "string 5", NULL};
     pthread_t thread;
     int code;
 
-    code = pthread_create(&thread, NULL, thread_body, param_1);
-    if (code != 0) {
-        error_handler(code, argv);
-        exit(EXIT_FAILURE);
+    for (int i = 0; i < THREAD_COUNT; ++i) {
+        code = pthread_create(&thread, NULL, thread_body, param);
+        if (code != 0) {
+            char buf[BUFFER_SIZE];
+            strerror_r(code, buf, sizeof buf);
+            fprintf(stderr, "%s: creating thread: %s\n", argv[0], buf);
+            exit(EXIT_FAILURE);
+        }
     }
-    code = pthread_create(&thread, NULL, thread_body, param_2);
-    if (code != 0) {
-        error_handler(code, argv);
-        exit(EXIT_FAILURE);
-    }
-    code = pthread_create(&thread, NULL, thread_body, param_3);
-    if (code != 0) {
-        error_handler(code, argv);
-        exit(EXIT_FAILURE);
-    }
-    code = pthread_create(&thread, NULL, thread_body, param_4);
-    if (code != 0) {
-        error_handler(code, argv);
-        exit(EXIT_FAILURE);
-    }
-    return (EXIT_SUCCESS);
+    pthread_exit(NULL);
 }

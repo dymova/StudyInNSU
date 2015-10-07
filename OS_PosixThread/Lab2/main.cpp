@@ -6,11 +6,21 @@ const int COUNT_LINE = 10;
 const int BUFFER_SIZE = 256;
 
 void* thread_body(void* param) {
-    char* str = (char *) "Test\n";
+    char* str = (char *) "\t Test\n";
     for(int i = 0; i < COUNT_LINE; i++) {
         printf("Child: %d\n", i);
     }
-//    pthread_exit(NULL);
+
+    double k = 222.0;
+    printf("%f\n", k);
+
+
+    pthread_attr_t attr;
+    size_t stack_size;
+    pthread_attr_init(&attr);
+    pthread_attr_getstacksize(&attr, &stack_size);
+    printf("Thread stack size = %d bytes \n", (int) stack_size);
+    printf("str addr: %p\n", &str);
     return str;
 }
 
@@ -27,8 +37,11 @@ int main(int argc, char *argv[]) {
     }
 
     char* str;
+    printf("str addr before join: %p \n", &str);
     code = pthread_join(thread, (void **) &str);
     printf("%s", str);
+    printf("str addr after join: %p \n", &str);
+
 
     if (code != 0) {
         char buf[BUFFER_SIZE];
