@@ -24,18 +24,14 @@ int main(int argc, char* argv[]) {
     int code;
 
     code = sem_init ( &s1, 0, 0 );
-    if (code != 0) {
-        char buf[BUFFER_SIZE];
-        strerror_r(code, buf, sizeof buf);
-        fprintf(stderr, "%s: initializing semaphore: %s\n", argv[0], buf);
+    if (code == -1) {
+        perror("sem_init");
         exit(EXIT_FAILURE);
     }
 
     code = sem_init ( &s2, 0, 1 );
     if (code != 0) {
-        char buf[BUFFER_SIZE];
-        strerror_r(code, buf, sizeof buf);
-        fprintf(stderr, "%s: initializing semaphore: %s\n", argv[0], buf);
+        perror("sem_init");
         exit(EXIT_FAILURE);
     }
 
