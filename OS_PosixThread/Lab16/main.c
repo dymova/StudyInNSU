@@ -6,7 +6,6 @@
 #include <string.h>
 #include <unistd.h>
 
-const int BUFFER_SIZE = 80;
 
 typedef struct list {
     struct list *next;
@@ -78,6 +77,7 @@ void *bubble_sort(void *head) {
 }
 
 int main(int argc, char *argv[]) {
+    const int BUFFER_SIZE = 80;
     int code;
 
     pthread_mutexattr_t attr;
@@ -104,10 +104,10 @@ int main(int argc, char *argv[]) {
     pthread_create(&sort_thread, NULL, bubble_sort, (void *) (&head));
 
 
-    printf("Please, enter message:\n");
+    printf("Please, enter message or '.' for exit:\n");
     for (; ;) {
         char *str = (char *) calloc(BUFFER_SIZE, sizeof(char));
-        if (NULL == fgets(str, BUFFER_SIZE, stdin)) {
+        if (NULL == fgets(str, BUFFER_SIZE, stdin) || '.' == str[0]) {
             break;
         }
         if ('\n' == str[strlen(str) - 1]) {

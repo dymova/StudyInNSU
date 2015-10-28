@@ -4,11 +4,10 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-const int COUNT_LINE = 10;
-const char* SEM_NAME_1 = "/print_sem_1";
-const char* SEM_NAME_2 = "/print_sem_2";
-
 int main(int argc, char **argv) {
+    const int COUNT_LINE = 10;
+    const char* SEM_NAME_1 = "/print_sem_1";
+    const char* SEM_NAME_2 = "/print_sem_2";
     sem_t* s1;
     sem_t* s2;
     pid_t pid;
