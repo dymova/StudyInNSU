@@ -1,5 +1,5 @@
-#ifndef LAB23_MYQUEUE_H
-#define LAB23_MYQUEUE_H
+#ifndef LAB24_MYQUEUE_H
+#define LAB24_MYQUEUE_H
 
 #include <semaphore.h>
 

@@ -38,12 +38,10 @@ void addStringToList(char *buffer, List **head) {
 
 void releaseMemory(List **head) {
     List *currentNode = *head;
-    if (NULL != currentNode) {
-        while (NULL != currentNode) {
-            free(currentNode->data);
-            free(currentNode);
-            currentNode = currentNode->next;
-        }
+    while (NULL != currentNode) {
+        free(currentNode->data);
+        free(currentNode);
+        currentNode = currentNode->next;
     }
 }
 
@@ -58,9 +56,6 @@ void *bubble_sort(void *head) {
     for (; ;) {
         sleep(5);
         List *first = *((List **) head);
-        if (first->next == NULL) {
-            continue;
-        }
         pthread_mutex_lock(&mutex);
         for (List *i = first; i; i = i->next) {
             for (List *j = i->next; j; j = j->next) {
@@ -73,7 +68,6 @@ void *bubble_sort(void *head) {
         pthread_mutex_unlock(&mutex);
         printList(first);
     }
-    pthread_exit(NULL);
 }
 
 int main(int argc, char *argv[]) {

@@ -23,7 +23,20 @@ public class ClientThread implements Runnable {
 
     @Override
     public void run() {
+        try {
+            String str = "ggggactccaa";
+            System.out.println(getMd5Hash(str));
+            System.out.println(str.length());
+
+
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+
         try (Socket socket = new Socket(serverAddress, serverPort)) {
+            System.out.println("connect");
             try (OutputStream outputStream = socket.getOutputStream();
                  InputStream inputStream = socket.getInputStream();
                  DataInputStream dataInputStream = new DataInputStream(inputStream)) {
@@ -34,7 +47,6 @@ public class ClientThread implements Runnable {
 
                 //receive hash and stringLength
                 int messageSize = dataInputStream.readInt();
-//                System.out.println("size: " + messageSize);
                 byte messageType = (byte) inputStream.read();
                 System.out.println("type:" + messageType);
                 if (messageType == Protocol.HASH_ANSWER_TYPE) {
@@ -55,11 +67,18 @@ public class ClientThread implements Runnable {
             }
             //compute
             ArrayList<byte[]> suitableString = computeDiapason();
+            //todo
+//            suitableString.add(new byte[] {0, 1, 3, 1, 1});
+
+            for (byte[] bytes : suitableString) {
+                System.out.println(getString(bytes));
+            }
 
             //send result
-//            byte[] resultMessage = createResultMessage(suitableString);
-            while(sendResultAndGetNewDiapason(createResultMessage(suitableString))){
+            byte[] resultMessage = createResultMessage(suitableString);
+            while (sendResultAndGetNewDiapason(resultMessage)) {
                 suitableString = computeDiapason();
+                resultMessage = createResultMessage(suitableString);
             }
 
         } catch (IOException | UnknownProtocolException | NoSuchAlgorithmException e) {
@@ -104,7 +123,10 @@ public class ClientThread implements Runnable {
         }
     }
 
+
     private ArrayList<byte[]> computeDiapason() throws UnsupportedEncodingException, NoSuchAlgorithmException {
+
+
         ArrayList<byte[]> diapasonAsArray = getDiapasonAsArray();
         ArrayList<byte[]> suitableString = new ArrayList<>();
 
@@ -113,6 +135,17 @@ public class ClientThread implements Runnable {
                 suitableString.add(bytes);
             }
         }
+        if (!suitableString.isEmpty()) {
+            System.out.println("suitable: ");
+            for (byte[] bytes : suitableString) {
+                for (byte aByte : bytes) {
+                    System.out.print(aByte);
+                }
+                System.out.println();
+            }
+
+        }
+
         return suitableString;
     }
 
@@ -137,6 +170,32 @@ public class ClientThread implements Runnable {
         return str;
     }
 
+    public void convertToNextSequence(byte[] sequence) {
+        boolean flag = true;
+        int position = sequence.length - 1;
+        while (flag) {
+            if (sequence[position] != 3) {
+                flag = false;
+            }
+            switch (sequence[position]) {
+                case 0:
+                    sequence[position] = 1;
+                    break;
+                case 1:
+                    sequence[position] = 2;
+                    break;
+                case 2:
+                    sequence[position] = 3;
+                    break;
+                case 3:
+                    sequence[position] = 0;
+                    break;
+            }
+            position--;
+        }
+    }
+
+
     private ArrayList<byte[]> getDiapasonAsArray() {
         ArrayList<byte[]> array = new ArrayList<>();
         long stringCounts = (long) Math.pow(4, stringLength - 2);
@@ -145,22 +204,23 @@ public class ClientThread implements Runnable {
         System.out.println("first: " + first);
         System.out.println("second: " + second);
 
-        for (long stringEndNo = 0; stringEndNo < stringCounts; stringEndNo++) {
-            ByteBuffer byteBuffer = ByteBuffer.allocate(stringLength);
+        byte[] ending = new byte[stringLength - 2];
+        Arrays.fill(ending, (byte) 0);
+
+        ByteBuffer byteBuffer = ByteBuffer.allocate(stringLength);
+        byteBuffer.put(first);
+        byteBuffer.put(second);
+        byteBuffer.put(ending);
+        array.add(byteBuffer.array());
+        for (int i = 0; i < stringCounts - 1; i++) {
+            byteBuffer = ByteBuffer.allocate(stringLength);
             byteBuffer.put(first);
             byteBuffer.put(second);
-            for (int i = 0; i < stringLength - 2; i++) {
-                int symbolNumber = (int) (stringEndNo / 4);
-                byteBuffer.put((byte) ((stringEndNo >> symbolNumber * 2) & 3));
-            }
+            convertToNextSequence(ending);
+            byteBuffer.put(ending);
             array.add(byteBuffer.array());
         }
-//        for (byte[] bytes : array) {
-//            for (byte aByte : bytes) {
-//                System.out.print(aByte);
-//            }
-//            System.out.println();
-//        }
+
         return array;
     }
 
@@ -199,19 +259,19 @@ public class ClientThread implements Runnable {
     }
 
     private byte[] arrayListToByteArray(ArrayList<byte[]> suitableString) {
-        ByteBuffer byteBuffer = ByteBuffer.allocate((stringLength / 4) + 1);
+        ByteBuffer byteBuffer = ByteBuffer.allocate(suitableString.size()*((stringLength / 4) + 1));
         for (byte[] bytes : suitableString) {
             byte b = 0;
             int bigPartCount = bytes.length / 4;
             for (int j = 0; j < bigPartCount; j++) {
                 for (int i = 0; i < 4; i++) {
-                    b = (byte) ((b << 2) + bytes[i]);
+                    b = (byte) ((b << 2) + bytes[i + j * 4]);
                 }
                 byteBuffer.put(b);
                 b = 0;
             }
             for (int i = 0; i < bytes.length % 4; i++) {
-                b = (byte) ((b << 2) + bytes[i + bigPartCount*Protocol.SYMBOL_IN_BYTE]);
+                b = (byte) ((b << 2) + bytes[i + bigPartCount * Protocol.SYMBOL_IN_BYTE]);
             }
             byteBuffer.put(b);
         }

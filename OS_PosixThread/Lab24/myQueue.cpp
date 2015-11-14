@@ -48,7 +48,7 @@ int mymsgget(Queue *q, char *buf, size_t bufsize) {
     QueueRecord *record;
 
     pthread_mutex_lock(&q->mutex);
-    while(q->size==0 && !q->destroyFlag) {
+    while(q->size==0 && !(q->destroyFlag)) {
         pthread_cond_wait(&q->cond, &q->mutex);
     }
     if (q->destroyFlag) {
@@ -83,7 +83,7 @@ void mymsgdrop(Queue *q) {
     QueueRecord *record;
     q->destroyFlag = 1;
     pthread_mutex_lock(&q->mutex);
-    pthread_cond_broadcast(&q->cond);//todo check
+    pthread_cond_broadcast(&q->cond);
     record = q->head;
     while (record) {
         QueueRecord *tmp;

@@ -4,7 +4,6 @@
 #include <string.h>
 #include <unistd.h>
 
-const int BUFFER_SIZE = 80;
 
 typedef struct list {
     struct list *next;
@@ -13,13 +12,7 @@ typedef struct list {
 
 pthread_rwlock_t rwlock;
 
-void addFirstElement(char *str, List **head) {
-    pthread_rwlock_wrlock(&rwlock);
-    (*head)->data = str;
-    (*head)->next = NULL;
-    pthread_rwlock_unlock(&rwlock);
 
-}
 
 void printList(List *head) {
     pthread_rwlock_rdlock(&rwlock);
@@ -45,13 +38,11 @@ void addStringToList(char *buffer, List **head) {
 
 void releaseMemory(List **head) {
     List *currentNode = *head;
-    if (NULL != currentNode) {
         while (NULL != currentNode) {
             free(currentNode->data);
             free(currentNode);
             currentNode = currentNode->next;
         }
-    }
 }
 
 void swap(List *a, List *b) {
@@ -65,9 +56,7 @@ void *bubble_sort(void *head) {
     for (; ;) {
         sleep(5);
         List *first = *((List **) head);
-        if (first->next == NULL) {
-            continue;
-        }
+
         pthread_rwlock_wrlock(&rwlock);
         for (List *i = first; i; i = i->next) {
             for (List *j = i->next; j; j = j->next) {
@@ -80,10 +69,11 @@ void *bubble_sort(void *head) {
         pthread_rwlock_unlock(&rwlock);
         printList(first);
     }
-    pthread_exit(NULL);
 }
 
 int main(int argc, char *argv[]) {
+    const int BUFFER_SIZE = 80;
+
     int code;
 
     pthread_rwlockattr_t attr;
@@ -105,17 +95,15 @@ int main(int argc, char *argv[]) {
 
     pthread_t sort_thread;
 
-    List *head = (List *) malloc(sizeof(List));
-    head->next = NULL;
+    List *head = NULL;
 
     pthread_create(&sort_thread, NULL, bubble_sort, (void *) (&head));
 
 
-    printf("Please, enter message:\n");
-    int isFirst = 1;
+    printf("Please, enter message or '.' for exit:\n");
     for (; ;) {
         char *str = (char *) calloc(BUFFER_SIZE, sizeof(char));
-        if (NULL == fgets(str, BUFFER_SIZE, stdin)) {
+        if (NULL == fgets(str, BUFFER_SIZE, stdin) || '.' == str[0]) {
             break;
         }
         if ('\n' == str[strlen(str) - 1]) {
@@ -126,15 +114,10 @@ int main(int argc, char *argv[]) {
             printList(head);
             continue;
         }
-        if (isFirst) {
-            addFirstElement(str, &head);
-            isFirst = 0;
-        }
-        else {
-            addStringToList(str, &head);
-        }
+        addStringToList(str, &head);
         printList(head);
     }
+
 
     pthread_cancel(sort_thread);
     pthread_join(sort_thread, NULL);

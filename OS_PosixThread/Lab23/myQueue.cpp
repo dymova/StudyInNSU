@@ -1,7 +1,3 @@
-//
-// Created by nastya on 26.10.15.
-//
-
 #include <malloc.h>
 #include <string.h>
 #include "myQueue.h"
@@ -18,15 +14,15 @@ void mymsginit(Queue *q) {
 int mymsgput(Queue *q, char *msg) {
     QueueRecord *record;
 
-    sem_wait(&q->tailSem);
     sem_wait(&q->queueSem);
+    sem_wait(&q->tailSem);
     if (q->destroyFlag) {
         sem_post(&q->tailSem);
         sem_post(&q->queueSem);
         return 0;
     }
     record = (QueueRecord *) malloc(sizeof(QueueRecord));
-    strncpy(record->buf, msg, sizeof(record->buf) - 1);
+    strncpy(record->buf, msg, sizeof(record->buf));
     record->buf[sizeof(record->buf) - 1] = '\0';
     record->prev = q->tail;
     record->next = NULL;
@@ -38,11 +34,11 @@ int mymsgput(Queue *q, char *msg) {
     }
     sem_post(&q->queueSem);
     sem_post(&q->headSem);
-    return strlen(record->buf) + 1;
+    return strlen(record->buf);
 }
 
-int mymsgget(queue *q, char *buf, size_t bufsize) {
-    QueueRecord *t;
+int mymsgget(Queue *q, char *buf, size_t bufsize) {
+    QueueRecord *record;
 
     sem_wait(&q->headSem);
     sem_wait(&q->queueSem);
@@ -51,28 +47,28 @@ int mymsgget(queue *q, char *buf, size_t bufsize) {
         sem_post(&q->queueSem);
         return 0;
     }
-    t = q->head;
-    if (q->tail == t) {
+    record = q->head;
+    if (q->tail == record) {
         q->tail = q->head = NULL;
     } else {
-        q->head = t->next;
+        q->head = record->next;
         q->head->prev = NULL;
     }
     sem_post(&q->queueSem);
-    strncpy(buf, t->buf, bufsize - 1);
+    strncpy(buf, record->buf, bufsize);
     buf[bufsize - 1] = '\0';
-    free(t);
+    free(record);
     sem_post(&q->tailSem);
-    return strlen(buf) + 1;
+    return strlen(buf);
 }
 
-void mymsgdestroy(queue *q) {
+void mymsgdestroy(Queue *q) {
     sem_destroy(&q->headSem);
     sem_destroy(&q->tailSem);
     sem_destroy(&q->queueSem);
 }
 
-void mymsgdrop(queue *q) {
+void mymsgdrop(Queue *q) {
     QueueRecord *record;
     q->destroyFlag=1;
     sem_wait(&q->queueSem);

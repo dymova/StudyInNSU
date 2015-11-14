@@ -31,7 +31,6 @@ public class ServerThread implements Runnable {
                      OutputStream outputStream = socket.getOutputStream()) {
                     while (true) {
                         int size = dataInputStream.readInt();
-//                        System.out.println("size:" + size);
                         int type = inputStream.read();
                         System.out.println("type:" + type);
                         switch (type) {
@@ -40,6 +39,7 @@ public class ServerThread implements Runnable {
                                 break;
                             case Protocol.DIAPASON_REQUEST_TYPE:
                                 ArrayList<DiapasonInfo> array = clients.get(socket.getInetAddress());
+                                if(nextDiapason != Protocol.LAST_DIAPASON + 1)
                                 if (array == null) {
                                     array = new ArrayList<>();
                                     array.add(new DiapasonInfo(nextDiapason));
@@ -92,17 +92,30 @@ public class ServerThread implements Runnable {
     private ArrayList<String> getStringArrayListFromResult(int count, byte[] result) throws UnknownProtocolException {
         ArrayList<String> strings = new ArrayList<>(count);
         int byteInString = (stringLength / 4) + 1;
+        String tmpStr = "";
         String str = "";
-        for (int i = 0; i < result.length; i++) {
-            for (int j = 0; j < 4; j++) {
-                byte b = (byte) ((result[i] >> j * 2) & 3);
-                str += Protocol.byteToChar(b);
+        int bigPart = stringLength / 4;
+        int symbolsInSmallPart = stringLength % 4;
+        for (int s = 0; s < count; s++) {
+            for (int k = 0; k < bigPart; k++) {
+                for (int j = 0; j < 4; j++) {
+                    byte b = (byte) ((result[k + s*byteInString] >> j * 2) & 3);
+                    tmpStr += Protocol.byteToChar(b);
+                }
+                str += (new StringBuilder(tmpStr).reverse().toString());
+                tmpStr = "";
             }
-            if ((i + 1) % byteInString == 0) {
-                strings.add(new StringBuilder(str).reverse().toString());
-                str = "";
+            for (int i = 0; i < symbolsInSmallPart; i++) {
+                byte b = (byte) ((result[bigPart] >> i * 2) & 3);
+                tmpStr += Protocol.byteToChar(b);
             }
+            str += (new StringBuilder(tmpStr).reverse().toString());
+            tmpStr = "";
+
+            strings.add(str);
+            str = "";
         }
+
         for (String string : strings) {
             System.out.println("strings: " + string);
         }
@@ -110,16 +123,6 @@ public class ServerThread implements Runnable {
         return strings;
     }
 
-
-    private byte[] createAnswer(int size, int type) {
-        switch (type) {
-            case Protocol.FIST_REQUEST_TYPE:
-                return createMessageWithHash();
-            case Protocol.DIAPASON_REQUEST_TYPE:
-                return createMessageWithDiapason();
-        }
-        throw new IllegalArgumentException("from server");
-    }
 
     private byte[] createMessageWithDiapason() {
         if (nextDiapason != Protocol.LAST_DIAPASON) {

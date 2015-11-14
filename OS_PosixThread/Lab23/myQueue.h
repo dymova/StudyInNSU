@@ -1,7 +1,3 @@
-//
-// Created by nastya on 26.10.15.
-//
-
 #ifndef LAB23_MYQUEUE_H
 #define LAB23_MYQUEUE_H
 

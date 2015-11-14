@@ -1,7 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
-#include <semaphore.h>
 #include <unistd.h>
 #include <string.h>
 
@@ -9,11 +8,11 @@
 
 #define PRODUCER_COUNT 2
 #define CONSUMER_COUNT 2
-#define CONSUMER_BUF 30
+#define BUF 30
 
 void *consumer(void *param) {
-    Queue *q = (queue *) param;
-    char buf[CONSUMER_BUF];
+    Queue *q = (Queue *) param;
+    char buf[BUF];
 
     int count = 0;
     for (; ;) {
@@ -24,16 +23,15 @@ void *consumer(void *param) {
         printf("Received from queue %d: %s\n",count,  buf);
         count++;
     }
-    return NULL;
 }
 
 
-void *producer(void *param) {
-    Queue *q = (queue *) param;
+void* producer(void *param) {
+    Queue *q = (Queue *) param;
 
     int counter = 0;
     for (; ;) {
-        char buf[40];//todo
+        char buf[BUF];
         sprintf(buf, "Message %d from thread %d", counter, (int) pthread_self());
 
         if (!mymsgput(q, buf)) {
@@ -41,7 +39,6 @@ void *producer(void *param) {
         }
         counter++;
     }
-    return NULL;
 }
 
 int main(int argc, char *argv[]) {
