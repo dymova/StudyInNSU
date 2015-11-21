@@ -78,12 +78,12 @@ Forwarder::Forwarder(char* listenPortAsString, char *remoteHost, char* remotePor
 void Forwarder::start() {
 
     for (; ;) {
-        fillMasksForSelect(&readfs, &writefs, listenSocket, head);
-        if ((readyFdCount = select(maxfd + 1, &readfs, &writefs, NULL, NULL)) == -1) {
+        fillMasksForSelect(&readfs, &writefs, listenSocket);
+        if ((readyFdCount = select(maxfd + 1, &readfs, &writefs, NULL, NULL)) == -1) { //todo max?
             throw new StartForwarderException(std::string("select"));
         }
 
-        checkReadfsAndWritefs(&readfs, &writefs, head);
+        checkReadfsAndWritefs(&readfs, &writefs);
 
         struct sockaddr_in cliaddr;
         if (FD_ISSET(listenSocket, &readfs)) {
@@ -105,16 +105,16 @@ void Forwarder::start() {
 
 }
 
-void Forwarder::fillMasksForSelect(fd_set *readfs, fd_set *writefs, int listenSocket, Connection *pHead) {
+void Forwarder::fillMasksForSelect(fd_set *readfs, fd_set *writefs, int listenSocket) {
     FD_ZERO(readfs);
     FD_ZERO(writefs);
     FD_SET(listenSocket, readfs);
 
-    Connection *c = pHead;
-    while (c) {
+    std::list<std::shared_ptr<Connection>> removedConnections;
+    for(auto& c: connections) {
         if ((c->getSizeClientToServer() < 0 && c->getSizeServerToClient() <= 0) ||
             (c->getSizeServerToClient() < 0 && c->getSizeClientToServer() <= 0)) {
-            dropConnection(c);
+            removedConnections.push_back(c);
         } else {
             if (c->getSizeClientToServer() == 0) {
                 FD_SET(c->getClientSocket(), readfs);
@@ -129,7 +129,10 @@ void Forwarder::fillMasksForSelect(fd_set *readfs, fd_set *writefs, int listenSo
                 FD_SET(c->getClientSocket(), writefs);
             }
         }
-        c = c->getNext();
+    }
+    for (auto removedConnection : removedConnections) {
+        connections.remove(removedConnection); //todo not deleted
+        std::cout<< "drop connection" <<std::endl;
     }
 }
 
@@ -144,9 +147,8 @@ int Forwarder::checkSocket(int socketId, int *maxFd) {
     return 0;
 }
 
-void Forwarder::checkReadfsAndWritefs(fd_set *readfs, fd_set *writefs, Connection *pHead) {
-    Connection *c = pHead;
-    while (c) {
+void Forwarder::checkReadfsAndWritefs(fd_set *readfs, fd_set *writefs) {
+    for (auto& c: connections) {
         if (c->getSizeClientToServer() == 0 && FD_ISSET(c->getClientSocket(), readfs)) {
             if (0 == (c->sizeClientToServer = (int) read(c->getClientSocket(), c->bufClientToServer,
                                                          sizeof(c->bufClientToServer)))) {
@@ -158,6 +160,8 @@ void Forwarder::checkReadfsAndWritefs(fd_set *readfs, fd_set *writefs, Connectio
                                                          sizeof(c->bufServerToClient)))) {
                 c->sizeServerToClient = -1;
             }
+            printf("<<ServerTOClient: %s\n", c->bufServerToClient);
+
         }
         if (c->sizeClientToServer > 0 && FD_ISSET(c->getServerSocket(), writefs)) {
             int res = (int) write(c->getServerSocket(), c->bufClientToServer, (size_t) c->sizeClientToServer);
@@ -166,7 +170,9 @@ void Forwarder::checkReadfsAndWritefs(fd_set *readfs, fd_set *writefs, Connectio
             } else {
                 c->sizeClientToServer = 0;
             }
+            printf(">>ClientToServer: %s\n", c->bufClientToServer);
         }
+
         if (c->sizeServerToClient > 0 && FD_ISSET(c->getClientSocket(), writefs)) {
             int res = (int) write(c->getClientSocket(), c->bufServerToClient, (size_t) c->sizeServerToClient);
             if (res == -1) {
@@ -175,28 +181,10 @@ void Forwarder::checkReadfsAndWritefs(fd_set *readfs, fd_set *writefs, Connectio
                 c->sizeServerToClient = 0;
             }
         }
-        c = c->getNext();
     }
 }
 
-void Forwarder::dropConnection(Connection *c) {
-    if (c == head && c == tail) {
-        head = NULL;
-        tail = NULL;
-    } else if (c == head) {
-        head = c->getNext();
-        head->setPrev(NULL);
-    } else if (c == tail) {
-        tail = c->getPrev();
-        tail->setNext(NULL);
-    } else {
-        c->getNext()->setPrev(c->getPrev());
-        c->getPrev()->setNext(c->getNext());
-    }
-    close(c->getServerSocket());
-    close(c->getClientSocket());
-    free(c);
-}
+
 
 Connection *Forwarder::addConnection(int clientSocket, struct sockaddr_in *serverAddr, int *maxFd) {
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -212,18 +200,14 @@ Connection *Forwarder::addConnection(int clientSocket, struct sockaddr_in *serve
         return NULL;
     }
 
-    c->setPrev(NULL);
-    c->setNext(head);
-    if (head == NULL) {
-        tail = c;
-    } else {
-        head->setPrev(c);
-    }
-    head = c;
+    connections.push_back(std::shared_ptr<Connection>(c));
+
     c->sizeServerToClient = 0;
     c->sizeClientToServer = 0;
     memset(c->bufClientToServer, 0, sizeof(c->bufClientToServer));
     memset(c->bufServerToClient, 0, sizeof(c->bufServerToClient));
+
+    printf("\nnew connection\n");
 
     return c;
 }

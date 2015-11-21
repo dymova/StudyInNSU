@@ -4,6 +4,8 @@
 
 #include <sys/select.h>
 #include <stdexcept>
+#include <memory>
+#include <list>
 #include "Connection.h"
 
 class Forwarder {
@@ -16,8 +18,8 @@ public:
 private:
     fd_set readfs;
     fd_set writefs;
-    Connection *head = NULL;
-    Connection *tail = NULL;
+    std::list<std::shared_ptr<Connection>> connections;
+
     int maxfd;
     int listenSocket;
     int readyFdCount;
@@ -25,11 +27,10 @@ private:
 
 
     void fillMasksForSelect(fd_set *readfs, fd_set *writefs,
-                        int listenSocket, Connection *pHead);
+                        int listenSocket);
     int checkSocket(int socketId, int *maxFd);
 
-    void checkReadfsAndWritefs(fd_set *readfs, fd_set *writefs, Connection *pHead);
-    void dropConnection(Connection *c);
+    void checkReadfsAndWritefs(fd_set *readfs, fd_set *writefs);
     Connection *addConnection(int clientSocket, struct sockaddr_in *serverAddr, int *maxFd);
 };
 

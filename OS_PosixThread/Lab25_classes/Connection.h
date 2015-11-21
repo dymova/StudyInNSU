@@ -21,8 +21,8 @@ public:
 private:
     int clientSocket;
     int serverSocket;
-    Connection *prev;
-    Connection *next;
+
+
 
 public:
     int getClientSocket() const {
@@ -33,13 +33,6 @@ public:
         return serverSocket;
     }
 
-    Connection *getPrev() const {
-        return prev;
-    }
-
-    Connection *getNext() const {
-        return next;
-    }
 
     int getSizeClientToServer() const {
         return sizeClientToServer;
@@ -49,13 +42,6 @@ public:
         return sizeServerToClient;
     }
 
-    void setPrev(Connection *prev) {
-        Connection::prev = prev;
-    }
-
-    void setNext(Connection *next) {
-        Connection::next = next;
-    }
 };
 
 

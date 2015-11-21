@@ -2,11 +2,12 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/select.h>
-#include <iostream>
 #include <sys/socket.h>
 #include <netdb.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #define BUFSIZE 1024
 const char *USAGE = "Usage: Server <listenPort> <remoteHost> <remotePort>";
@@ -19,7 +20,6 @@ typedef struct connection {
     char bufServerToClient[BUFSIZE];
     int sizeClientToServer; //destroy if -1
     int sizeServerToClient;
-//    int destoyFlag;
 } Connection;
 
 Connection *head = NULL;
@@ -36,6 +36,18 @@ void checkSocket(int socketId, int *maxFd) {
 }
 
 void dropConnection(Connection *c) {
+//    if (c == head && c->next == NULL) {
+//        head = NULL;
+//    } else if (c == head) {
+//        head = c->next;
+//        head->prev = NULL;
+//    } else {
+//        c->next->prev = c->prev;
+//        c->prev->next = c->next;
+//    }
+//    close(c->serverSocket);
+//    close(c->clientSocket);
+//    free(c);
     if (c == head && c == tail) {
         head = NULL;
         tail = NULL;
@@ -65,6 +77,8 @@ void fillMasksForSelect(fd_set *readfs, fd_set *writefs,
         if ((c->sizeClientToServer < 0 && c->sizeServerToClient <= 0) ||
             (c->sizeServerToClient < 0 && c->sizeClientToServer <= 0)) {
             dropConnection(c);
+            printf("\ndrop connection\n");
+
         } else {
             if (c->sizeClientToServer == 0) {
                 FD_SET(c->clientSocket, readfs);
@@ -78,8 +92,8 @@ void fillMasksForSelect(fd_set *readfs, fd_set *writefs,
             if (c->sizeServerToClient > 0) {
                 FD_SET(c->clientSocket, writefs);
             }
-            c = c->next;
         }
+        c = c->next;
     }
 }
 
@@ -91,12 +105,16 @@ void checkReadfsAndWritefs(fd_set *readfs, fd_set *writefs, Connection *pHead) {
                                                          sizeof(c->bufClientToServer)))) {
                 c->sizeClientToServer = -1;
             }
-        }//todo don't check buf
+//            printf("<<ClientToServer: %s\n", c->bufClientToServer);
+
+        }
         if (c->sizeServerToClient == 0 && FD_ISSET(c->serverSocket, readfs)) {
             if (0 == (c->sizeServerToClient = (int) read(c->serverSocket, c->bufServerToClient,
                                                          sizeof(c->bufServerToClient)))) {
                 c->sizeServerToClient = -1;
             }
+            printf("<<ServerTOClient: %s\n", c->bufServerToClient);
+
         }
         if (c->sizeClientToServer > 0 && FD_ISSET(c->serverSocket, writefs)) {
             int res = (int) write(c->serverSocket, c->bufClientToServer, c->sizeClientToServer);
@@ -105,6 +123,8 @@ void checkReadfsAndWritefs(fd_set *readfs, fd_set *writefs, Connection *pHead) {
             } else {
                 c->sizeClientToServer = 0;
             }
+            printf(">>ClientToServer: %s\n", c->bufClientToServer);
+
         }
         if (c->sizeServerToClient > 0 && FD_ISSET(c->clientSocket, writefs)) {
             int res = (int) write(c->clientSocket, c->bufServerToClient, c->sizeServerToClient);
@@ -113,6 +133,8 @@ void checkReadfsAndWritefs(fd_set *readfs, fd_set *writefs, Connection *pHead) {
             } else {
                 c->sizeServerToClient = 0;
             }
+//            printf(">>ServerToClient: %s\n", c->bufServerToClient);
+
         }
         c = c->next;
     }
@@ -131,18 +153,21 @@ Connection *addConnection(int clientSocket, struct sockaddr_in *serverAddr, int 
 
     if (-1 == (connect(c->serverSocket, (struct sockaddr *) serverAddr, sizeof(*serverAddr)))) {
         perror("connent to server");
-        close(c->serverSocket); //todo check
+        close(c->serverSocket);
         free(c);
         return NULL;
     }
 
     c->prev = NULL;
     c->next = head;
+
     if (head == NULL) {
         tail = c;
     } else {
         head->prev = c;
     }
+
+//    head->prev = c;
     head = c;
     c->sizeServerToClient = 0;
     c->sizeClientToServer = 0;
@@ -238,6 +263,7 @@ int main(int argc, char **argv) {
                 perror(argv[0]);
                 return EXIT_FAILURE;
             }
+            printf("\nnew connection\n");
         }
     }
 
