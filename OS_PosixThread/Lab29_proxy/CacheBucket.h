@@ -6,10 +6,12 @@
 #define LAB29_PROXY_CACHEBUCKET_H
 
 #include <list>
+#include <vector>
 
 class CacheBucket {
+public:
     bool isFull = false;
-    std::list<char*> pagePieces;
+    std::vector<char*> pagePieces;
 };
 
 

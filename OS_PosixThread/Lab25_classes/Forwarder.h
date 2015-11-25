@@ -12,13 +12,12 @@ class Forwarder {
 public:
     Forwarder(char *listenPort, char *remoteHost, char *remotePort);
     void start();
-    const char *USAGE = "Usage: Server <listenPort> <remoteHost> <remotePort>";
 
 
 private:
     fd_set readfs;
     fd_set writefs;
-    std::list<std::shared_ptr<Connection>> connections;
+    std::list<Connection*> connections;
 
     int maxfd;
     int listenSocket;

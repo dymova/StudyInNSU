@@ -1,12 +1,15 @@
 #include <iostream>
+#include <cstdlib>
+#include <cstdio>
+
 #include "Forwarder.h"
 
-const char *USAGE = "Usage: Server <listenPort> <remoteHost> <remotePort>";
+const char *USAGE = "Usage: Server <listenPort> <remoteHost> <remotePort>\n";
 
 int main(int argc, char **argv) {
 
     if (argc != 4) {
-        fprintf(stderr, USAGE);
+        fprintf(stderr,"%s" ,USAGE);
         return EXIT_FAILURE;
     }
     try {

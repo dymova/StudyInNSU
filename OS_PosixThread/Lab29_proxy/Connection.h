@@ -5,6 +5,8 @@
 #ifndef LAB29_PROXY_CONNECTION_H
 #define LAB29_PROXY_CONNECTION_H
 
+#include "CacheBucket.h"
+
 #define BUFSIZE 1024
 
 class Connection {
@@ -12,6 +14,7 @@ class Connection {
 public:
     Connection(int clientSocket);
 
+    bool fromCache = false;
     bool requestHandled = false;
     char bufClientToServer[BUFSIZE];
     char bufServerToClient[BUFSIZE]; //запись в мапе
@@ -21,6 +24,9 @@ public:
 
     int sizeClientToServer; //destroy if -1
     int sizeServerToClient;
+
+    CacheBucket* bucket = nullptr;
+    int currentCashPosition = 0;
 
 };
 

@@ -5,7 +5,7 @@
 
 #include <stdexcept>
 #include <memory>
-#include <list>
+#include <vector>
 #include <map>
 #include "Connection.h"
 #include "CacheBucket.h"
@@ -35,6 +35,7 @@ private:
 
 
     void handleRequest(std::shared_ptr<Connection> &ptr);
+    bool checkRequest(std::shared_ptr<Connection> &c);
 
     void getUrl(std::shared_ptr<Connection> &c, char[]) const;
 

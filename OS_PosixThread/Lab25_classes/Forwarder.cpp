@@ -6,7 +6,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/socket.h>
-
 #include <sys/time.h>
 #include <sys/types.h>
 #include <iostream>
@@ -20,12 +19,12 @@ Forwarder::Forwarder(char* listenPortAsString, char *remoteHost, char* remotePor
 
     int listenPort = atoi(listenPortAsString);
     if (listenPort <= 0) {
-        throw new IllegalArgumentException(std::string(listenPortAsString));
+        throw IllegalArgumentException(std::string(listenPortAsString));
     }
 
     int remotePort = atoi(remotePortAsString);
     if (remotePort <= 0) {
-        throw new IllegalArgumentException(std::string(listenPortAsString));
+        throw IllegalArgumentException(std::string(listenPortAsString));
     }
 
     struct addrinfo *remoteInfo;
@@ -37,7 +36,7 @@ Forwarder::Forwarder(char* listenPortAsString, char *remoteHost, char* remotePor
     int status;
     if ((status = getaddrinfo(remoteHost, remotePortAsString, &hint, &remoteInfo)) != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
-        throw new ConstructorForwarderException(std::string("getaddrinfo for remote host"));
+        throw ConstructorForwarderException(std::string("getaddrinfo for remote host"));
     }
     serverAddr = (struct sockaddr_in *) remoteInfo->ai_addr;
 
@@ -53,24 +52,24 @@ Forwarder::Forwarder(char* listenPortAsString, char *remoteHost, char* remotePor
     struct addrinfo *listenInfo;
     if ((status = getaddrinfo(NULL, listenPortAsString, &hint, &listenInfo)) != 0) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
-        throw new ConstructorForwarderException(std::string("getaddrinfo for listening"));
+        throw ConstructorForwarderException(std::string("getaddrinfo for listening"));
     }
 
     listenSocket = socket(listenInfo->ai_family,
                               listenInfo->ai_socktype,
                               listenInfo->ai_protocol);
     if(-1 == checkSocket(listenSocket, &maxfd)) {
-        throw new ConstructorForwarderException(std::string("checkSocket"));
+        throw ConstructorForwarderException(std::string("checkSocket"));
     }
 
     int val = 1;
     setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(int));
     if (bind(listenSocket, listenInfo->ai_addr, listenInfo->ai_addrlen)) {
-        throw new ConstructorForwarderException(std::string("bind listen socket"));
+        throw ConstructorForwarderException(std::string("bind listen socket"));
     }
 
     if ((listen(listenSocket, SOMAXCONN)) == -1) {
-        throw new ConstructorForwarderException(std::string("listen"));
+        throw ConstructorForwarderException(std::string("listen"));
     }
 
 }
@@ -80,7 +79,7 @@ void Forwarder::start() {
     for (; ;) {
         fillMasksForSelect(&readfs, &writefs, listenSocket);
         if ((readyFdCount = select(maxfd + 1, &readfs, &writefs, NULL, NULL)) == -1) { //todo max?
-            throw new StartForwarderException(std::string("select"));
+            throw StartForwarderException(std::string("select"));
         }
 
         checkReadfsAndWritefs(&readfs, &writefs);
@@ -90,13 +89,13 @@ void Forwarder::start() {
             socklen_t addrlen = sizeof(cliaddr);
             int newClientFd = accept(listenSocket, (struct sockaddr *) &cliaddr, &addrlen);
             if (newClientFd < 0) {
-                throw new StartForwarderException(std::string("accept"));
+                throw StartForwarderException(std::string("accept"));
             }
             if(-1 == checkSocket(newClientFd, &maxfd)) {
-                throw new StartForwarderException(std::string("checkSocket"));
+                throw StartForwarderException(std::string("checkSocket"));
             }
             if (NULL == addConnection(newClientFd, serverAddr, &maxfd)) {
-                throw new StartForwarderException(std::string("addConnection"));
+                throw StartForwarderException(std::string("addConnection"));
             }
         }
     }
@@ -110,11 +109,13 @@ void Forwarder::fillMasksForSelect(fd_set *readfs, fd_set *writefs, int listenSo
     FD_ZERO(writefs);
     FD_SET(listenSocket, readfs);
 
-    std::list<std::shared_ptr<Connection>> removedConnections;
+    std::list<Connection*> removedConnections;
     for(auto& c: connections) {
         if ((c->getSizeClientToServer() < 0 && c->getSizeServerToClient() <= 0) ||
             (c->getSizeServerToClient() < 0 && c->getSizeClientToServer() <= 0)) {
             removedConnections.push_back(c);
+            close(c->getClientSocket());
+            close(c->getServerSocket());
         } else {
             if (c->getSizeClientToServer() == 0) {
                 FD_SET(c->getClientSocket(), readfs);
@@ -131,7 +132,7 @@ void Forwarder::fillMasksForSelect(fd_set *readfs, fd_set *writefs, int listenSo
         }
     }
     for (auto removedConnection : removedConnections) {
-        connections.remove(removedConnection); //todo not deleted
+        connections.remove(removedConnection);
         std::cout<< "drop connection" <<std::endl;
     }
 }
@@ -200,7 +201,7 @@ Connection *Forwarder::addConnection(int clientSocket, struct sockaddr_in *serve
         return NULL;
     }
 
-    connections.push_back(std::shared_ptr<Connection>(c));
+    connections.push_back(c);
 
     c->sizeServerToClient = 0;
     c->sizeClientToServer = 0;

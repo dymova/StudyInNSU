@@ -135,15 +135,7 @@ void Proxy::checkReadfsAndWritefs() {
                 handleRequest(c);
             }
         }
-        if (c->sizeServerToClient == 0 && FD_ISSET(c->serverSocket, &readfs)) {
-            if (0 == (c->sizeServerToClient = (int) read(c->serverSocket, c->bufServerToClient,
-                                                         sizeof(c->bufServerToClient)))) {
-                c->sizeServerToClient = -1;
-            }
-            printf("<<ServerTOClient: %s\n", c->bufServerToClient);
-
-        }
-        if (c->sizeClientToServer > 0 && FD_ISSET(c->serverSocket, &writefs)) {
+        if ( c->sizeClientToServer > 0 && FD_ISSET(c->serverSocket, &writefs)) {
             int res = (int) write(c->serverSocket, c->bufClientToServer, (size_t) c->sizeClientToServer);
             if (res == -1) {
                 c->sizeServerToClient = -1;
@@ -152,13 +144,39 @@ void Proxy::checkReadfsAndWritefs() {
             }
             printf(">>ClientToServer: %s\n", c->bufClientToServer);
         }
+        //todo need check server socket -1?
+        if(c->fromCache) {
+            if(FD_ISSET(c->clientSocket, &writefs)){
+                char* currentBuf =  c->bucket->pagePieces[c->currentCashPosition];
+                //todo check current buf valid, not nul pointer
+                int res = (int) write(c->clientSocket, currentBuf, sizeof(currentBuf) ); //todo attention
+                if (res == -1) {
+                    c->sizeClientToServer = -1;
+                } else {
+                    c->currentCashPosition++;
+                }
+            }
+            //todo
+        } else {
+            if (c->sizeServerToClient == 0 && FD_ISSET(c->serverSocket, &readfs)) {
+                if (0 == (c->sizeServerToClient = (int) read(c->serverSocket, c->bufServerToClient,
+                                                             sizeof(c->bufServerToClient)))) {
+                    c->sizeServerToClient = -1;
+                    c->bucket->isFull = true;
+                } else {
+                    char * newItem = (char*) malloc(c->sizeServerToClient * sizeof(char));
+                    c->bucket->pagePieces.push_back(newItem);
+                }
+                printf("<<ServerTOClient: %s\n", c->bufServerToClient);
 
-        if (c->sizeServerToClient > 0 && FD_ISSET(c->clientSocket, &writefs)) {
-            int res = (int) write(c->clientSocket, c->bufServerToClient, (size_t) c->sizeServerToClient);
-            if (res == -1) {
-                c->sizeClientToServer = -1;
-            } else {
-                c->sizeServerToClient = 0;
+            }
+            if (c->sizeServerToClient > 0 && FD_ISSET(c->clientSocket, &writefs)) {
+                int res = (int) write(c->clientSocket, c->bufServerToClient, (size_t) c->sizeServerToClient);
+                if (res == -1) {
+                    c->sizeClientToServer = -1;
+                } else {
+                    c->sizeServerToClient = 0;
+                }
             }
         }
     }
@@ -182,23 +200,10 @@ Connection *Proxy::addConnection(int clientSocket) {
 
 void Proxy::handleRequest(std::shared_ptr<Connection> &c) {
     std::cout<< c->bufClientToServer << std::endl;
-
-    if(NULL == strstr(c->bufClientToServer, "GET") && NULL == strstr(c->bufClientToServer, "HEAD") ) {
-        std::cout<< "not supported method" << std::endl;
-        c->sizeClientToServer = -1;
-        c->sizeServerToClient = -1;
-        write(c->clientSocket, HTTP_405_ERROR, strlen(HTTP_405_ERROR));
+    bool isRightRequest = checkRequest(c);
+    if(!isRightRequest) {
         return;
     }
-    if(NULL == strstr(c->bufClientToServer, "HTTP/1.0")) {
-        std::cout<< "not supported protocol" << std::endl;
-        c->sizeClientToServer = -1;
-        c->sizeServerToClient = -1;
-        write(c->clientSocket, HTTP_505_ERROR, strlen(HTTP_405_ERROR));
-        return;
-    }
-    strcat(c->bufClientToServer, "\n\n"); //todo check if it needed?
-
     char* url = (char*) calloc(BUFSIZE, sizeof(char));
     getUrl(c, url);
 
@@ -206,23 +211,43 @@ void Proxy::handleRequest(std::shared_ptr<Connection> &c) {
     sscanf( url, "%*[^/]%*[/]%[^/]", host);
     printf("host: %s\n", host);
 
-    if(cache.find(url))
-    cache.insert(std::pair<char*, CacheBucket*>(url, new CacheBucket()));
-
-
-    int status;
-    if(-1 == (status = connectWithServer(c, host))) {
-        std::cout<< "connect error" << std::endl;
-        close(c->serverSocket);
-        c->sizeClientToServer = -1;
-        c->sizeServerToClient = -1;
-    }
-
     c->requestHandled = true;
 
-
+    //check cache
+    if(cache.find(url) == cache.end()) {
+        cache.insert(std::pair<char*, CacheBucket*>(url, new CacheBucket()));
+        int status;
+        if(-1 == (status = connectWithServer(c, host))) {
+            std::cout<< "connect error" << std::endl;
+            close(c->serverSocket);
+            c->sizeClientToServer = -1;
+            c->sizeServerToClient = -1;
+        }
+    } else {
+        c->fromCache = true;
+        //todo
+    }
 }
 
+
+bool Proxy::checkRequest(std::shared_ptr<Connection> &c) {
+    if(NULL == strstr(c->bufClientToServer, "GET") && NULL == strstr(c->bufClientToServer, "HEAD") ) {
+        std::cout<< "not supported method" << std::endl;
+        c->sizeClientToServer = -1;
+        c->sizeServerToClient = -1;
+        write(c->clientSocket, HTTP_405_ERROR, strlen(HTTP_405_ERROR));
+        return false;
+    }
+    if(NULL == strstr(c->bufClientToServer, "HTTP/1.0")) {
+        std::cout<< "not supported protocol" << std::endl;
+        c->sizeClientToServer = -1;
+        c->sizeServerToClient = -1;
+        write(c->clientSocket, HTTP_505_ERROR, strlen(HTTP_405_ERROR));
+        return false;
+    }
+    strcat(c->bufClientToServer, "\n\n"); //todo check if it needed?
+    return true;
+}
 
 void Proxy::getUrl(std::shared_ptr<Connection> &c, char url[]) const {
     char* tmp = strchr(c->bufClientToServer, ' ');

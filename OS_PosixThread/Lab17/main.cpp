@@ -10,35 +10,49 @@
 typedef struct list {
     struct list *next;
     char *data;
-    pthread_mutex_t* mutex;
+    pthread_mutex_t *mutex;
 } List;
 
 
 void printList(List *head) {
     if (NULL != head) {
         List *currentNode = head;
+        pthread_mutex_lock(currentNode->mutex);
+        pthread_mutex_t *prev = currentNode->mutex;
+
         while (NULL != currentNode) {
-            pthread_mutex_lock(currentNode->mutex);
             printf("%s\n", currentNode->data);
-            pthread_mutex_unlock(currentNode->mutex);
+
             currentNode = currentNode->next;
+            if (currentNode == NULL) {
+                break;
+            }
+            pthread_mutex_lock(currentNode->mutex);
+            pthread_mutex_unlock(prev);
+            prev = currentNode->mutex;
         }
+        pthread_mutex_unlock(prev);
     }
     printf("-----------------------------------\n");
 }
 
-void addStringToList(char *buffer, List **head, pthread_mutex_t* mutex) {
+void addStringToList(char *buffer, List **head, pthread_mutex_t *mutex) {
+    pthread_mutex_lock(mutex);
+    pthread_mutex_t *m = NULL;
     if (*head != NULL) {
-        pthread_mutex_lock((*head)->mutex);
+        m = (*head)->mutex;
+        pthread_mutex_lock(m);
     }
+
     List *newNode = (List *) malloc(sizeof(List));
     newNode->data = buffer;
     newNode->next = *head;
     newNode->mutex = mutex;
-    if(*head != NULL) {
-        pthread_mutex_unlock((*head)->mutex);
-    }
     *head = newNode;
+    if (m != NULL) {
+        pthread_mutex_unlock(m);
+    }
+    pthread_mutex_lock(mutex);
 
 }
 
@@ -61,18 +75,28 @@ void swap(List *a, List *b) {
 void *bubble_sort(void *head) {
     for (; ;) {
         sleep(5);
-        List *first = *((List **) head);
-        for (List *i = first; i; i = i->next) {
+        int sorted = 0;
+        List *first;
+        while (!sorted) {
+            first = *((List **) head);
+            sorted = 1;
+            List *j;
+            List *i = first;
+            List* prev = i;
             pthread_mutex_lock(i->mutex);
-            for (List *j = i->next; j; j = j->next) {
+            j = i->next;
+            while(j) {
                 pthread_mutex_lock(j->mutex);
                 if (0 < strcmp(i->data, j->data)) {
+                    sorted = 0;
                     swap(i, j);
                 }
-                pthread_mutex_unlock(j->mutex);
+                prev = i;
+                i = i->next;
+                j = i->next;
+                pthread_mutex_unlock(prev->next->mutex);
+                pthread_mutex_unlock(prev->mutex);
             }
-            pthread_mutex_unlock(i->mutex);
-
         }
         printf("Sorted list:\n");
         printList(first);
@@ -95,13 +119,12 @@ int main(int argc, char *argv[]) {
 
     List *head = NULL;
 
+    pthread_t *sorted = (pthread_t *) malloc(10 * sizeof(pthread_t));
 
+    for (int i = 0; i < 10; ++i) {
+        pthread_create(&sorted[i], NULL, bubble_sort, (void *) (&head));
+    }
 
-    pthread_t sort_thread;
-    pthread_create(&sort_thread, NULL, bubble_sort, (void *) (&head));
-
-//    pthread_t sort_thread2;
-//    pthread_create(&sort_thread2, NULL, bubble_sort, (void *) (&head));
 
     printf("Please, enter message or '.' for exit:\n");
     for (; ;) {
@@ -126,14 +149,13 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
         addStringToList(str, &head, &mutex);
-
         printList(head);
     }
 
-    pthread_cancel(sort_thread);
-    pthread_join(sort_thread, NULL);
-//    pthread_cancel(sort_thread2);
-//    pthread_join(sort_thread2, NULL);
+    for (int i = 0; i < 10; ++i) {
+        pthread_cancel(sorted[i]);
+        pthread_join(sorted[i], NULL);
+    }
 
     releaseMemory(&head);
     return EXIT_SUCCESS;
