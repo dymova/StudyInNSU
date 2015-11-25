@@ -6,13 +6,17 @@
 #include <stdexcept>
 #include <memory>
 #include <list>
+#include <map>
 #include "Connection.h"
+#include "CacheBucket.h"
 
 class Proxy {
 
 public:
+    const char* HTTP_405_ERROR = "HTTP/1.0 405";
+    const char* HTTP_505_ERROR = "HTTP/1.0 505";
+    const char* HTTP_PORT = "80";
     Proxy(char *listenPortAsString);
-
     void start();
 
 private:
@@ -22,13 +26,19 @@ private:
     fd_set readfs;
     fd_set writefs;
     std::list<std::shared_ptr<Connection>> connections;
-
+    std::map<char*, CacheBucket*> cache;
 
     int checkSocket(int socketId);
     void fillMasksForSelect();
     void checkReadfsAndWritefs();
     Connection *addConnection(int clientSocket);
 
+
+    void handleRequest(std::shared_ptr<Connection> &ptr);
+
+    void getUrl(std::shared_ptr<Connection> &c, char[]) const;
+
+    int connectWithServer(std::shared_ptr<Connection> &c, char *string);
 
 };
 

@@ -3,5 +3,5 @@ project(Lab29_proxy)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
-set(SOURCE_FILES main.cpp Proxy.cpp Proxy.h Connection.cpp Connection.h)
+set(SOURCE_FILES main.cpp Proxy.cpp Proxy.h Connection.cpp Connection.h CacheBucket.cpp CacheBucket.h)
 add_executable(Lab29_proxy ${SOURCE_FILES})

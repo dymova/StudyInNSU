@@ -12,11 +12,12 @@ class Connection {
 public:
     Connection(int clientSocket);
 
-    bool requestSent;
-    char request[BUFSIZE];
+    bool requestHandled = false;
+    char bufClientToServer[BUFSIZE];
     char bufServerToClient[BUFSIZE]; //запись в мапе
 
     int clientSocket;
+    int serverSocket = -1;
 
     int sizeClientToServer; //destroy if -1
     int sizeServerToClient;

@@ -25,6 +25,5 @@ int main(int argc, char **argv) {
 
 
 
-//    freeaddrinfo(remoteInfo);
     return EXIT_SUCCESS;
 }

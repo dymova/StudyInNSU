@@ -13,15 +13,13 @@ int main(int argc, char **argv) {
         Forwarder* forwarder = new Forwarder(argv[1], argv[2], argv[3]);
         forwarder->start();
 
-    } catch (IllegalArgumentException e ) {
+    } catch (IllegalArgumentException& e ) {
         std::cout << e.what() << std::endl;
-    } catch  (ConstructorForwarderException e) {
+    } catch  (ConstructorForwarderException& e) {
         std::cout << e.what() << std::endl;
-    } catch (StartForwarderException e) {
+    } catch (StartForwarderException& e) {
         std::cout << e.what() << std::endl;
     }
 
-
-//    freeaddrinfo(remoteInfo);
     return EXIT_SUCCESS;
 }
