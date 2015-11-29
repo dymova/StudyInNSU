@@ -1,5 +1,8 @@
 #include <iostream>
 #include <stdexcept>
+#include <stdlib.h>
+#include <stdio.h>
+
 #include "Proxy.h"
 
 const char *USAGE = "Usage: Proxy <listenPort>";
@@ -7,7 +10,7 @@ const char *USAGE = "Usage: Proxy <listenPort>";
 int main(int argc, char **argv) {
 
     if (argc != 2) {
-        fprintf(stderr, USAGE);
+        fprintf(stderr, "%s", USAGE);
         return EXIT_FAILURE;
     }
 

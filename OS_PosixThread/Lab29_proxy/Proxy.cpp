@@ -5,6 +5,20 @@
 #include <string.h>
 #include <arpa/inet.h>
 
+#include <stdio.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/types.h>
+
+#include	<time.h>
+#include	<netinet/in.h>
+#include	<fcntl.h>
+#include	<netdb.h>
+//#include	<signal.h>
+#include	<string.h>
+#include	<sys/uio.h>
+//#include    <assert.h>
+
 #include "Proxy.h"
 #include "CacheBucket.h"
 
@@ -91,8 +105,9 @@ void Proxy::fillMasksForSelect() {
     FD_ZERO(&writefs);
     FD_SET(listenSocket, &readfs);
 
-    std::list<std::shared_ptr<Connection>> removedConnections;
-    for(auto& c: connections) {
+    std::list<Connection*> removedConnections;
+    for (std::list<Connection*>::iterator iterator = connections.begin(); iterator != connections.end(); ++iterator) {
+        Connection * c = *iterator;
         if ((c->sizeClientToServer < 0 && c->sizeServerToClient <= 0) ||
             (c->sizeServerToClient < 0 && c->sizeClientToServer <= 0)) {
             removedConnections.push_back(c);
@@ -101,21 +116,22 @@ void Proxy::fillMasksForSelect() {
             if (c->sizeClientToServer == 0) {
                 FD_SET(c->clientSocket, &readfs);
             }
-            if(c->serverSocket != -1) {
-                if (c->sizeServerToClient == 0) {
+            if (c->sizeServerToClient >= 0) {
+                FD_SET(c->clientSocket, &writefs);
+            }
+            if (c->serverSocket != -1) {
+                if (c->sizeServerToClient <= 0) { // для докачки страницы
+//                if (c->sizeServerToClient == 0) {
                     FD_SET(c->serverSocket, &readfs);
                 }
                 if (c->sizeClientToServer > 0) {
                     FD_SET(c->serverSocket, &writefs);
                 }
-
-                if (c->sizeServerToClient > 0) {
-                    FD_SET(c->clientSocket, &writefs);
-                }
             }
         }
     }
-    for (auto removedConnection : removedConnections) {
+    for (std::list<Connection*>::iterator list_iterator = removedConnections.begin(); list_iterator != removedConnections.end(); ++list_iterator) {
+        Connection * removedConnection = *list_iterator;
         close(removedConnection->clientSocket);
         close(removedConnection->serverSocket);
         connections.remove(removedConnection);
@@ -125,7 +141,8 @@ void Proxy::fillMasksForSelect() {
 }
 
 void Proxy::checkReadfsAndWritefs() {
-    for (auto& c: connections) {
+    for (std::list<Connection*>::iterator iterator = connections.begin(); iterator != connections.end(); ++iterator) {
+        Connection *  c = *iterator;
         if (c->sizeClientToServer == 0 && FD_ISSET(c->clientSocket, &readfs)) {
             if (0 == (c->sizeClientToServer = (int) read(c->clientSocket, c->bufClientToServer,
                                                          sizeof(c->bufClientToServer)))) {
@@ -133,50 +150,64 @@ void Proxy::checkReadfsAndWritefs() {
             }
             if(!c->requestHandled) {
                 handleRequest(c);
+
             }
         }
-        if ( c->sizeClientToServer > 0 && FD_ISSET(c->serverSocket, &writefs)) {
-            int res = (int) write(c->serverSocket, c->bufClientToServer, (size_t) c->sizeClientToServer);
-            if (res == -1) {
-                c->sizeServerToClient = -1;
-            } else {
-                c->sizeClientToServer = 0;
-            }
-            printf(">>ClientToServer: %s\n", c->bufClientToServer);
-        }
-        //todo need check server socket -1?
         if(c->fromCache) {
             if(FD_ISSET(c->clientSocket, &writefs)){
-                char* currentBuf =  c->bucket->pagePieces[c->currentCashPosition];
-                //todo check current buf valid, not nul pointer
-                int res = (int) write(c->clientSocket, currentBuf, sizeof(currentBuf) ); //todo attention
-                if (res == -1) {
-                    c->sizeClientToServer = -1;
-                } else {
-                    c->currentCashPosition++;
+                if(c->currentCashPosition < c->bucket->pagePieces.size()){
+                    char* currentBuf =  c->bucket->pagePieces[c->currentCashPosition];
+
+                    size_t size = strlen(currentBuf);
+                    int res = (int) write(c->clientSocket, currentBuf, (size_t) size); //todo read length buffer
+                    if (res == -1) {
+                        c->sizeClientToServer = -1;
+                    } else {
+                        c->currentCashPosition++;
+                        if(c->currentCashPosition == c->bucket->pagePieces.size() && c->bucket->isFull) {
+                            c->sizeClientToServer = -1;
+                        }
+                    }
                 }
             }
-            //todo
         } else {
+            if ( c->sizeClientToServer > 0 && FD_ISSET(c->serverSocket, &writefs)) {
+                int res = (int) write(c->serverSocket, c->bufClientToServer, (size_t) c->sizeClientToServer);
+                if (res == -1) {
+                    c->sizeServerToClient = -1;
+                } else {
+                    c->sizeClientToServer = 0;
+                }
+                printf(">>ClientToServer: %s\n", c->bufClientToServer);
+            }
             if (c->sizeServerToClient == 0 && FD_ISSET(c->serverSocket, &readfs)) {
                 if (0 == (c->sizeServerToClient = (int) read(c->serverSocket, c->bufServerToClient,
                                                              sizeof(c->bufServerToClient)))) {
                     c->sizeServerToClient = -1;
-                    c->bucket->isFull = true;
+                    if(c->bucket != NULL) {
+                        c->bucket->isFull = true;
+                    }
                 } else {
-                    char * newItem = (char*) malloc(c->sizeServerToClient * sizeof(char));
-                    c->bucket->pagePieces.push_back(newItem);
+                    if(!c->answerHandled) {
+                        handleAnswer(c);
+                    }
+                    if(c->cachingMode) {
+                        char * newItem = (char*) malloc(c->sizeServerToClient * sizeof(char));
+                        memcpy(newItem, c->bufServerToClient, (size_t) c->sizeServerToClient);
+                        c->bucket->pagePieces.push_back(newItem);
+                    }
                 }
                 printf("<<ServerTOClient: %s\n", c->bufServerToClient);
 
             }
             if (c->sizeServerToClient > 0 && FD_ISSET(c->clientSocket, &writefs)) {
                 int res = (int) write(c->clientSocket, c->bufServerToClient, (size_t) c->sizeServerToClient);
-                if (res == -1) {
-                    c->sizeClientToServer = -1;
-                } else {
-                    c->sizeServerToClient = 0;
-                }
+//                if (res == -1) {
+//                    c->sizeClientToServer = -1;
+//                } else {
+//                    c->sizeServerToClient = 0;
+//                }
+                c->sizeServerToClient = 0;
             }
         }
     }
@@ -186,7 +217,7 @@ Connection *Proxy::addConnection(int clientSocket) {
 
     Connection *c = new Connection(clientSocket);
 
-    connections.push_back(std::shared_ptr<Connection>(c));
+    connections.push_back(c);
 
     c->sizeServerToClient = 0;
     c->sizeClientToServer = 0;
@@ -195,42 +226,23 @@ Connection *Proxy::addConnection(int clientSocket) {
 
     printf("new connection\n");
 
+
     return c;
 }
 
-void Proxy::handleRequest(std::shared_ptr<Connection> &c) {
-    std::cout<< c->bufClientToServer << std::endl;
-    bool isRightRequest = checkRequest(c);
-    if(!isRightRequest) {
-        return;
+void Proxy::handleAnswer(Connection *c) {
+    if(strstr(c->bufServerToClient, "200") != NULL) {
+        c->cachingMode = true;
+        CacheBucket* bucket = new CacheBucket();
+        cache.insert(std::pair<char*, CacheBucket*>(c->url, bucket));
+        c->bucket = bucket;
     }
-    char* url = (char*) calloc(BUFSIZE, sizeof(char));
-    getUrl(c, url);
 
-    char* host = (char*) calloc(BUFSIZE, sizeof(char));
-    sscanf( url, "%*[^/]%*[/]%[^/]", host);
-    printf("host: %s\n", host);
-
-    c->requestHandled = true;
-
-    //check cache
-    if(cache.find(url) == cache.end()) {
-        cache.insert(std::pair<char*, CacheBucket*>(url, new CacheBucket()));
-        int status;
-        if(-1 == (status = connectWithServer(c, host))) {
-            std::cout<< "connect error" << std::endl;
-            close(c->serverSocket);
-            c->sizeClientToServer = -1;
-            c->sizeServerToClient = -1;
-        }
-    } else {
-        c->fromCache = true;
-        //todo
-    }
+    c->answerHandled = true;
 }
 
 
-bool Proxy::checkRequest(std::shared_ptr<Connection> &c) {
+bool Proxy::checkRequest(Connection* c) {
     if(NULL == strstr(c->bufClientToServer, "GET") && NULL == strstr(c->bufClientToServer, "HEAD") ) {
         std::cout<< "not supported method" << std::endl;
         c->sizeClientToServer = -1;
@@ -249,7 +261,38 @@ bool Proxy::checkRequest(std::shared_ptr<Connection> &c) {
     return true;
 }
 
-void Proxy::getUrl(std::shared_ptr<Connection> &c, char url[]) const {
+void Proxy::handleRequest(Connection* c) {
+    std::cout<< c->bufClientToServer << std::endl;
+    bool isRightRequest = checkRequest(c);
+    if(!isRightRequest) {
+        return;
+    }
+    char* url = (char*) calloc(BUFSIZE, sizeof(char));
+    getUrl(c, url);
+    c->url = url;
+
+    char* host = (char*) calloc(BUFSIZE, sizeof(char));
+    sscanf( url, "%*[^/]%*[/]%[^/]", host);
+    printf("host: %s\n", host);
+
+    c->requestHandled = true;
+
+    //check cache
+    if(cache.find(url) == cache.end()) {
+        int status;
+        if(-1 == (status = connectWithServer(c, host))) {
+            std::cout<< "connect error" << std::endl;
+            close(c->serverSocket);
+            c->sizeClientToServer = -1;
+            c->sizeServerToClient = -1;
+        }
+    } else {
+        c->fromCache = true;
+        c->bucket = cache.find(url)->second;
+    }
+}
+
+void Proxy::getUrl(Connection* c, char url[]) const {
     char* tmp = strchr(c->bufClientToServer, ' ');
     if(tmp == NULL) {
         std::cout<< "bad request 1" << std::endl;
@@ -268,7 +311,7 @@ void Proxy::getUrl(std::shared_ptr<Connection> &c, char url[]) const {
     printf("url: %s\n", url);
 }
 
-int Proxy::connectWithServer(std::shared_ptr<Connection> &c, char *remoteHost) {
+int Proxy::connectWithServer(Connection *c, char *remoteHost) {
     struct addrinfo *remoteInfo;
     struct addrinfo hint;
     memset(&hint, 0, sizeof(hint));

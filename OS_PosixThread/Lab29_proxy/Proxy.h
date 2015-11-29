@@ -4,11 +4,21 @@
 
 
 #include <stdexcept>
+#include <sys/select.h>
 #include <memory>
+#include <cstring>
 #include <vector>
 #include <map>
 #include "Connection.h"
 #include "CacheBucket.h"
+
+struct cmp_str
+{
+    bool operator()(char const *a, char const *b)
+    {
+        return std::strcmp(a, b) < 0;
+    }
+};
 
 class Proxy {
 
@@ -25,8 +35,8 @@ private:
     int listenSocket;
     fd_set readfs;
     fd_set writefs;
-    std::list<std::shared_ptr<Connection>> connections;
-    std::map<char*, CacheBucket*> cache;
+    std::list<Connection*> connections;
+    std::map<char*, CacheBucket*, cmp_str> cache;
 
     int checkSocket(int socketId);
     void fillMasksForSelect();
@@ -34,13 +44,14 @@ private:
     Connection *addConnection(int clientSocket);
 
 
-    void handleRequest(std::shared_ptr<Connection> &ptr);
-    bool checkRequest(std::shared_ptr<Connection> &c);
+    void handleRequest(Connection* ptr);
+    bool checkRequest(Connection* c);
 
-    void getUrl(std::shared_ptr<Connection> &c, char[]) const;
+    void getUrl(Connection* c, char[]) const;
 
-    int connectWithServer(std::shared_ptr<Connection> &c, char *string);
+    int connectWithServer(Connection* c, char *string);
 
+    void handleAnswer(Connection *c);
 };
 
 class IllegalArgumentException : public std::runtime_error
@@ -69,4 +80,7 @@ public:
     {
     }
 };
+
+
+
 #endif //LAB29_PROXY_PROXY_H

@@ -10,8 +10,11 @@
 
 class CacheBucket {
 public:
-    bool isFull = false;
+    bool isFull;
     std::vector<char*> pagePieces;
+
+
+    CacheBucket();
 };
 
 

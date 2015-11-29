@@ -47,10 +47,8 @@ public class Connection implements Runnable {
 
             serverSocket = new Socket(url.getHost(), PORT);
 
-//            URI uri = url.toURI();
             OutputStream serverOutput = serverSocket.getOutputStream();
 
-//            readLine = readLine.replace(url.toString(), uri.getPath());
             System.out.println(">>" + readLine );
             serverOutput.write((readLine + "\n\n").getBytes());
 

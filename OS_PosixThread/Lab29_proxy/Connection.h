@@ -14,19 +14,25 @@ class Connection {
 public:
     Connection(int clientSocket);
 
-    bool fromCache = false;
-    bool requestHandled = false;
+    bool fromCache ;
+
+    bool requestHandled ;
+    bool answerHandled ;
+
+    bool cachingMode ;
+
     char bufClientToServer[BUFSIZE];
     char bufServerToClient[BUFSIZE]; //запись в мапе
 
     int clientSocket;
-    int serverSocket = -1;
+    int serverSocket;
 
     int sizeClientToServer; //destroy if -1
     int sizeServerToClient;
 
-    CacheBucket* bucket = nullptr;
-    int currentCashPosition = 0;
+    CacheBucket* bucket;
+    int currentCashPosition;
+    char* url;
 
 };
 

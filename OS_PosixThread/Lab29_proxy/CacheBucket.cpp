@@ -3,3 +3,7 @@
 //
 
 #include "CacheBucket.h"
+
+CacheBucket::CacheBucket() {
+    isFull = false;
+}
