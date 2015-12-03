@@ -12,6 +12,13 @@
 #include <netdb.h>
 #include <string.h>
 #include <arpa/inet.h>
+
+#include	<time.h>
+#include	<netinet/in.h>
+#include	<fcntl.h>
+#include	<signal.h>
+#include	<sys/uio.h>
+#include    <assert.h>
 #include "Forwarder.h"
 
 Forwarder::Forwarder(char* listenPortAsString, char *remoteHost, char* remotePortAsString) {
@@ -78,7 +85,7 @@ void Forwarder::start() {
 
     for (; ;) {
         fillMasksForSelect(&readfs, &writefs, listenSocket);
-        if ((readyFdCount = select(maxfd + 1, &readfs, &writefs, NULL, NULL)) == -1) { //todo max?
+        if ((readyFdCount = select(maxfd + 1, &readfs, &writefs, NULL, NULL)) == -1) {
             throw StartForwarderException(std::string("select"));
         }
 
@@ -110,7 +117,8 @@ void Forwarder::fillMasksForSelect(fd_set *readfs, fd_set *writefs, int listenSo
     FD_SET(listenSocket, readfs);
 
     std::list<Connection*> removedConnections;
-    for(auto& c: connections) {
+    for (std::list<Connection*>::iterator iterator = connections.begin(); iterator != connections.end(); ++iterator) {
+        Connection * c = *iterator;
         if ((c->getSizeClientToServer() < 0 && c->getSizeServerToClient() <= 0) ||
             (c->getSizeServerToClient() < 0 && c->getSizeClientToServer() <= 0)) {
             removedConnections.push_back(c);
@@ -131,8 +139,18 @@ void Forwarder::fillMasksForSelect(fd_set *readfs, fd_set *writefs, int listenSo
             }
         }
     }
-    for (auto removedConnection : removedConnections) {
+
+//    for(auto& c: connections) {
+//
+//    }
+//    for (auto removedConnection : removedConnections) {
+//
+//    }
+
+    for (std::list<Connection*>::iterator list_iterator = removedConnections.begin(); list_iterator != removedConnections.end(); ++list_iterator) {
+        Connection * removedConnection = *list_iterator;
         connections.remove(removedConnection);
+        delete(removedConnection);
         std::cout<< "drop connection" <<std::endl;
     }
 }
@@ -140,7 +158,7 @@ void Forwarder::fillMasksForSelect(fd_set *readfs, fd_set *writefs, int listenSo
 int Forwarder::checkSocket(int socketId, int *maxFd) {
     if (socketId >= FD_SETSIZE) {
         fprintf(stderr, "Socket number out of range\n");
-        return -1; //todo exit
+        return -1;
     }
     if (socketId > *maxFd) {
         *maxFd = socketId;
@@ -149,7 +167,8 @@ int Forwarder::checkSocket(int socketId, int *maxFd) {
 }
 
 void Forwarder::checkReadfsAndWritefs(fd_set *readfs, fd_set *writefs) {
-    for (auto& c: connections) {
+    for (std::list<Connection*>::iterator  iterator = connections.begin(); iterator != connections.end(); ++iterator) {
+        Connection *  c = *iterator;
         if (c->getSizeClientToServer() == 0 && FD_ISSET(c->getClientSocket(), readfs)) {
             if (0 == (c->sizeClientToServer = (int) read(c->getClientSocket(), c->bufClientToServer,
                                                          sizeof(c->bufClientToServer)))) {
@@ -183,6 +202,9 @@ void Forwarder::checkReadfsAndWritefs(fd_set *readfs, fd_set *writefs) {
             }
         }
     }
+//    for (auto& c: connections) {
+//
+//    }
 }
 
 

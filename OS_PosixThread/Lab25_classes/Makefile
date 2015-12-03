@@ -1,5 +1,5 @@
 main: main.o Forwarder.o Connection.o 
-	g++ -std=c++98 main.o Forwarder.o Connection.o -o main
+	g++ -std=c++98 -lsocket -lnsl main.o Forwarder.o Connection.o -o main
 Forwarder.o: Forwarder.cpp
 	g++ -std=c++98 -c Forwarder.cpp
 Connection.o: Connection.cpp
