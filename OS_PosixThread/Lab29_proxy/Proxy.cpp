@@ -22,7 +22,12 @@
 #include "Proxy.h"
 #include "CacheBucket.h"
 
+const char* HTTP_405_ERROR = "HTTP/1.0 405";
+const char* HTTP_505_ERROR = "HTTP/1.0 505";
+const char* HTTP_PORT = "80";
+
 Proxy::Proxy(char *listenPortAsString) {
+
     int listenPort = atoi(listenPortAsString);
     if (listenPort <= 0) {
         throw new IllegalArgumentException(std::string(listenPortAsString));
@@ -116,12 +121,13 @@ void Proxy::fillMasksForSelect() {
             if (c->sizeClientToServer == 0) {
                 FD_SET(c->clientSocket, &readfs);
             }
-            if (c->sizeServerToClient >= 0) {
+
+            if (c->sizeServerToClient > 0 || c->fromCache) {
                 FD_SET(c->clientSocket, &writefs);
             }
             if (c->serverSocket != -1) {
-                if (c->sizeServerToClient <= 0) { // для докачки страницы
-//                if (c->sizeServerToClient == 0) {
+//                if (c->sizeServerToClient <= 0) { // для докачки страницы
+                if (c->sizeServerToClient == 0) {
                     FD_SET(c->serverSocket, &readfs);
                 }
                 if (c->sizeClientToServer > 0) {
@@ -150,7 +156,6 @@ void Proxy::checkReadfsAndWritefs() {
             }
             if(!c->requestHandled) {
                 handleRequest(c);
-
             }
         }
         if(c->fromCache) {
@@ -197,17 +202,16 @@ void Proxy::checkReadfsAndWritefs() {
                         c->bucket->pagePieces.push_back(newItem);
                     }
                 }
-                printf("<<ServerTOClient: %s\n", c->bufServerToClient);
-
             }
             if (c->sizeServerToClient > 0 && FD_ISSET(c->clientSocket, &writefs)) {
                 int res = (int) write(c->clientSocket, c->bufServerToClient, (size_t) c->sizeServerToClient);
-//                if (res == -1) {
-//                    c->sizeClientToServer = -1;
-//                } else {
-//                    c->sizeServerToClient = 0;
-//                }
-                c->sizeServerToClient = 0;
+                if (res == -1) {
+                    c->sizeClientToServer = -1;
+                } else {
+                    c->sizeServerToClient = 0;
+                }
+                printf("<<ServerTOClient: %s\n", c->bufServerToClient);
+//                c->sizeServerToClient = 0;
             }
         }
     }

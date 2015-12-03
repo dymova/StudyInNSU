@@ -9,4 +9,4 @@ CacheBucket.o: CacheBucket.cpp
 main.o: main.cpp
 	g++ -std=c++98 -c main.cpp
 clean:
-	rm -rf *.o 
+	rm -rf *.o main

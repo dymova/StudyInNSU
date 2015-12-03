@@ -23,9 +23,9 @@ struct cmp_str
 class Proxy {
 
 public:
-    const char* HTTP_405_ERROR = "HTTP/1.0 405";
-    const char* HTTP_505_ERROR = "HTTP/1.0 505";
-    const char* HTTP_PORT = "80";
+//    const char* HTTP_405_ERROR = "HTTP/1.0 405";
+//    const char* HTTP_505_ERROR = "HTTP/1.0 505";
+//    const char* HTTP_PORT = "80";
     Proxy(char *listenPortAsString);
     void start();
 
