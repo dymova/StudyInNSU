@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
-
+#include <utility>
 #include "Proxy.h"
 #include "ServerConnection.h"
 
@@ -69,8 +69,8 @@ void Proxy::start() {
             throw StartProxyException(std::string("select"));
         }
 
-        checkClientsReadfsAndWritefs();
         checkServersReadfsAndWritefs();
+        checkClientsReadfsAndWritefs();
 
         struct sockaddr_in clientAddr;
         if (FD_ISSET(listenSocket, &readfs)) {
@@ -113,31 +113,31 @@ void Proxy::fillMaskForServersConnections() {
          iterator != serverConnections.end(); ++iterator) {
         ServerConnection *c = *iterator;
         switch (c->getState()) {
-            case ServerConnectionState::ERROR:
+            case SERVER_ERROR:
                 removedConnections.push_back(c);
                 break;
-            case ServerConnectionState::NEW_CONNECTION:
+            case NEW_SERVER_CONNECTION:
                 FD_SET(c->getServerSocket(), &writefs);
                 break;
             default:
-                if (c->getByteInBuf() == 0) {
+                if (c->getByteInBuf() == 0 && c->getClientConnection()->getByteInBuf() == 0) {
                     FD_SET(c->getServerSocket(), &readfs);
                 }
                 break;
         }
 
-        for (std::list<ServerConnection *>::iterator list_iterator = removedConnections.begin();
-             list_iterator != removedConnections.end(); ++list_iterator) {
-            ServerConnection *removedConnection = *list_iterator;
-            close(removedConnection->getServerSocket());
+    }
+    for (std::list<ServerConnection *>::iterator list_iterator = removedConnections.begin();
+         list_iterator != removedConnections.end(); ++list_iterator) {
+        ServerConnection *removedConnection = *list_iterator;
+        close(removedConnection->getServerSocket());
 //            if(removedConnection->getServerSocket() != -1) {
 //                close(removedConnection->getServerSocket());
 //            }
-            serverConnections.remove(removedConnection);
-            delete (removedConnection);
-            std::cout << "drop connection" << std::endl;
+        serverConnections.remove(removedConnection);
+//            delete (removedConnection);
+        std::cout << "drop server connection" << std::endl;
 
-        }
     }
 }
 
@@ -147,10 +147,10 @@ void Proxy::fillMaskForClientsConnections() {
          iterator != clientConnections.end(); ++iterator) {
         ClientConnection *c = *iterator;
         switch (c->getState()) {
-            case ClientConnectionState::ERROR:
+            case CLIENT_ERROR:
                 removedConnections.push_back(c);
                 break;
-            case ClientConnectionState::NEW_CONNECTION:
+            case NEW_CONNECTION:
                 FD_SET(c->getClientSocket(), &readfs);
                 break;
             default:
@@ -160,15 +160,15 @@ void Proxy::fillMaskForClientsConnections() {
                 break;
         }
 
-        for (std::list<ClientConnection *>::iterator list_iterator = removedConnections.begin();
-             list_iterator != removedConnections.end(); ++list_iterator) {
-            ClientConnection *removedConnection = *list_iterator;
-            close(removedConnection->getClientSocket());
-            clientConnections.remove(removedConnection);
-            delete (removedConnection);
-            std::cout << "drop connection" << std::endl;
+    }
+    for (std::list<ClientConnection *>::iterator list_iterator = removedConnections.begin();
+         list_iterator != removedConnections.end(); ++list_iterator) {
+        ClientConnection *removedConnection = *list_iterator;
+        close(removedConnection->getClientSocket());
+        clientConnections.remove(removedConnection);
+        delete (removedConnection);
+        std::cout << "drop connection" << std::endl;
 
-        }
     }
 }
 
@@ -178,64 +178,82 @@ void Proxy::checkServersReadfsAndWritefs() {
         ServerConnection *c = *iterator;
 
         switch (c->getState()) {
-            case ServerConnectionState::ERROR:
+            case SERVER_ERROR:
                 break;
-            case ServerConnectionState::NEW_CONNECTION:
+            case NEW_SERVER_CONNECTION:
                 if (FD_ISSET(c->getServerSocket(), &writefs)) {
 
                     int res = (int) write(c->getServerSocket(), c->getClientConnection()->getBuf(),
                                           (size_t) c->getClientConnection()->getByteInBuf());
                     if (res == -1) {
-                        c->getClientConnection()->setState(ClientConnectionState::ERROR);
-                        c->setState(ServerConnectionState::ERROR);
+                        c->getClientConnection()->setState(CLIENT_ERROR);
+                        c->setState(SERVER_ERROR);
                     } else {
+                        printf(">>ClientToServer: %s\n", c->getClientConnection()->getBuf());
                         c->getClientConnection()->setByteInBuf(0);
-                        memset(c->getClientConnection()->getBuf(), 0, sizeof(c->getClientConnection()->getBuf()));
+                        memset(c->getClientConnection()->getBuf(), 0, BUFSIZE);
+                        c->setState(EXPECTED_RESPONSE);
                     }
-                    printf(">>ClientToServer: %s\n", c->getClientConnection()->getBuf());
                 }
                 break;
-            case ServerConnectionState::EXPECTED_RESPONSE:
+            case EXPECTED_RESPONSE:
                 if (FD_ISSET(c->getServerSocket(), &readfs)) {
                     if (0 == (c->setByteInBuf((int) read(c->getServerSocket(), c->getBuf(),
-                                                         sizeof(c->getBuf()))))) {
-                        c->getClientConnection()->setState(ClientConnectionState::ERROR);
-                        c->setState(ServerConnectionState::ERROR);
+                                                         BUFSIZE)))) {
+                        c->getClientConnection()->setState(CLIENT_ERROR);
+                        c->setState(SERVER_ERROR);
                     } else {
                         handleAnswer(c);
+                        if(c->getState() == CACHING_MODE) {
+                            saveDataToCache(c);
+                            copyDataToClientBuf(c);
+                        } else if(c->getState() == NOT_CACHING_MODE) {
+                            copyDataToClientBuf(c);
+                        }
                     }
                 }
                 break;
-            case ServerConnectionState::CACHING_MODE:
+            case CACHING_MODE:
                 if (FD_ISSET(c->getServerSocket(), &readfs)) {
                     if (0 == (c->setByteInBuf((int) read(c->getServerSocket(), c->getBuf(),
-                                                         sizeof(c->getBuf()))))) {
-                        c->getClientConnection()->setState(ClientConnectionState::ERROR);
-                        c->setState(ServerConnectionState::ERROR);
+                                                         BUFSIZE)))) {
+                        c->getClientConnection()->setState(CLIENT_ERROR);
+                        c->setState(SERVER_ERROR);
                         c->getCacheBucket()->setIsFull(true);
                     } else {
-                        char *newItem = (char *) malloc(c->getByteInBuf() * sizeof(char));
-                        memcpy(newItem, c->getBuf(), (size_t) c->getByteInBuf());
-                        c->getCacheBucket()->addItem(newItem, c->getByteInBuf());
-
-                        memcpy(c->getClientConnection()->getBuf(), c->getBuf(), (size_t) c->getByteInBuf());
-                        c->getClientConnection()->setByteInBuf(c->getByteInBuf());
+                        saveDataToCache(c);
+                        copyDataToClientBuf(c);
                     }
                 }
                 break;
-            case ServerConnectionState::NOT_CACHING_MODE:
+            case NOT_CACHING_MODE:
                 if (FD_ISSET(c->getServerSocket(), &readfs)) {
                     if (0 == (c->setByteInBuf((int) read(c->getServerSocket(), c->getBuf(),
-                                                         sizeof(c->getBuf()))))) {
-                        c->getClientConnection()->setState(ClientConnectionState::ERROR);
-                        c->setState(ServerConnectionState::ERROR);
+                                                         BUFSIZE)))) {
+                        c->getClientConnection()->setState(CLIENT_ERROR);
+                        c->setState(SERVER_ERROR);
                     } else {
-                        memcpy(c->getClientConnection()->getBuf(), c->getBuf(), (size_t) c->getByteInBuf());
-                        c->getClientConnection()->setByteInBuf(c->getByteInBuf());
+//                        memcpy(c->getClientConnection()->getBuf(), c->getBuf(), (size_t) c->getByteInBuf());
+//                        c->getClientConnection()->setByteInBuf(c->getByteInBuf());
+                        copyDataToClientBuf(c);
                     }
                 }
         }
     }
+}
+
+void Proxy::copyDataToClientBuf(ServerConnection *c) const {
+    memcpy(c->getClientConnection()->getBuf(), c->getBuf(), (size_t) c->getByteInBuf());
+    c->getClientConnection()->setByteInBuf(c->getByteInBuf());
+    memset(c->getBuf(), 0, BUFSIZE);
+    c->setByteInBuf(0);
+
+}
+
+void Proxy::saveDataToCache(ServerConnection *c) const {
+    char *newItem = (char *) malloc(c->getByteInBuf() * sizeof(char));
+    memcpy(newItem, c->getBuf(), (size_t) c->getByteInBuf());
+    c->getCacheBucket()->addItem(newItem, c->getByteInBuf());
 }
 
 bool Proxy::isRightUrl(ClientConnection *c) const {
@@ -266,12 +284,11 @@ bool Proxy::isRightRequest(ClientConnection *c) {
     const char HTTP_505_ERROR[] = "HTTP/1.0 505";
     const char HTTP_400_ERROR[] = "HTTP/1.0 400";
 
-
     if (NULL == strstr(c->getBuf(), "GET") && NULL == strstr(c->getBuf(), "HEAD")) {
         std::cout << "not supported method" << std::endl;
 //        write(c->getClientSocket(), HTTP_405_ERROR, strlen(HTTP_405_ERROR));
         write(c->getClientSocket(), HTTP_405_ERROR, sizeof(HTTP_405_ERROR));
-        c->getState() = ERROR;
+        c->setState(CLIENT_ERROR);
         return false;
     }
     if (NULL == strstr(c->getBuf(), "HTTP/1.0")) {
@@ -306,10 +323,10 @@ void Proxy::handleRequest(ClientConnection *c) {
             int status;
             if (!connectWithServer(c, host)) {
                 std::cout << "connect error" << std::endl;
-                c->setState(ERROR);
+                c->setState(CLIENT_ERROR);
             }
         } else {
-            c->setState(ClientConnectionState::FROM_CACHE);
+            c->setState(FROM_CACHE);
             c->setBucket(cache.find(c->getUrl())->second);
         }
         free(host);
@@ -360,38 +377,37 @@ void Proxy::checkClientsReadfsAndWritefs() {
         ClientConnection *c = *iterator;
         ClientConnectionState state = c->getState();
         switch (state) {
-            case ClientConnectionState::NEW_CONNECTION:
+            case NEW_CONNECTION:
                 if (FD_ISSET(c->getClientSocket(), &readfs)) {
-                    if (0 == (c->setByteInBuf((int) read(c->getClientSocket(), c->getBuf(),
-                                                         sizeof(c->getBuf()))))) {
-                        c->getState() = ClientConnectionState::ERROR;
+                    if (0 == (c->setByteInBuf((int) read(c->getClientSocket(), c->getBuf(), BUFSIZE)))) {
+                        c->setState(CLIENT_ERROR);
                     } else {
                         handleRequest(c);
                     }
                 }
                 break;
-            case ClientConnectionState::FROM_CACHE:
+            case FROM_CACHE:
                 if (FD_ISSET(c->getClientSocket(), &writefs)) {
                     if (c->getCurrentCachePosition() < c->getBucket()->size()) {
-                        char *currentBuf = c->bucket->pagePieces[c->currentCashPosition];
-
-                        size_t size = strlen(currentBuf);
-                        int res = (int) write(c->clientSocket, currentBuf, (size_t) size); //todo read length buffer
+                        std::pair<char *, int> pair = c->getBucket()->getItem(c->getCurrentCachePosition());
+                        int res = (int) write(c->getClientSocket(), pair.first, pair.second);
                         if (res == -1) {
-                            c->sizeClientToServer = -1;
+                            c->setState(CLIENT_ERROR);
                         } else {
-                            c->currentCashPosition++;
-                            if (c->currentCashPosition == c->bucket->pagePieces.size() && c->bucket->isFull) {
-                                c->sizeClientToServer = -1;
+                            c->incrementCachePosition();
+                            if (c->getCurrentCachePosition() == c->getBucket()->size() && c->getBucket()->isFull()) {
+                                c->setState(CLIENT_ERROR);
                             }
                         }
+
                     }
                 }
-            case ClientConnectionState::FROM_SERVER:
+                break;
+            case FROM_SERVER:
                 if (c->getByteInBuf() > 0 && FD_ISSET(c->getClientSocket(), &writefs)) {
                     int res = (int) write(c->getClientSocket(), c->getBuf(), (size_t) c->getByteInBuf());
                     if (res == -1) {
-                        c->setState(ClientConnectionState::ERROR);
+                        c->setState(CLIENT_ERROR);
                     } else {
                         c->setByteInBuf(0);
                     }

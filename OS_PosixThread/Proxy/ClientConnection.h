@@ -9,7 +9,8 @@
 
 #define BUFSIZE 1024
 
-enum ClientConnectionState {NEW_CONNECTION, FROM_CACHE, FROM_SERVER, ERROR};
+enum ClientConnectionState {NEW_CONNECTION, FROM_CACHE, FROM_SERVER, CLIENT_ERROR
+};
 
 class ClientConnection {
 
@@ -17,7 +18,12 @@ class ClientConnection {
 public:
     ClientConnection(int clientSocket);
 
-    char *getBuf() const;
+    char *getBuf() ;
+
+//    const char *getBuf() const {
+//        return buf;
+//    }
+
     int getByteInBuf();
     int setByteInBuf(int count);
     int getClientSocket() const;
@@ -46,14 +52,16 @@ private:
     int clientSocket;
     char* url;
     CacheBucket* bucket;
-    int currentCachePosition;
+    unsigned long currentCachePosition;
 
     ClientConnectionState state;
 
 public:
-    int getCurrentCachePosition() const {
+    unsigned long getCurrentCachePosition() const {
         return currentCachePosition;
     }
+
+    void incrementCachePosition();
 };
 
 

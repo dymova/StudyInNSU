@@ -10,7 +10,7 @@
 
 #define BUFSIZE 1024
 
-enum ServerConnectionState {NEW_CONNECTION, EXPECTED_RESPONSE, CACHING_MODE, NOT_CACHING_MODE, ERROR};
+enum ServerConnectionState {NEW_SERVER_CONNECTION, EXPECTED_RESPONSE, CACHING_MODE, NOT_CACHING_MODE, SERVER_ERROR};
 
 class ServerConnection {
 private:
@@ -30,9 +30,14 @@ public:
     const ServerConnectionState &getState() const;
     int getServerSocket() const ;
 
-    char *getBuf() const;
+    char *getBuf() ;
 
-    ClientConnection *getClientConnection() const {
+
+//    const char *getBuf() const {
+//        return buf;
+//    }
+
+    ClientConnection *getClientConnection() {
         return clientConnection;
     }
 

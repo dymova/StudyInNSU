@@ -8,7 +8,7 @@
 ClientConnection::ClientConnection(int clientSocket) {
     this->clientSocket = clientSocket;
     memset(buf, 0, sizeof(buf));
-    state = ClientConnectionState::NEW_CONNECTION;
+    state = NEW_CONNECTION;
     byteInBuf = 0;
     url = NULL;
     bucket = NULL;
@@ -20,7 +20,7 @@ const ClientConnectionState &ClientConnection::getState() const {
     return state;
 }
 
-char *ClientConnection::getBuf() const {
+char *ClientConnection::getBuf() {
     return buf;
 }
 
@@ -54,4 +54,8 @@ void ClientConnection::setState(const ClientConnectionState &state) {
 int ClientConnection::setByteInBuf(int count) {
     byteInBuf = count;
     return count;
+}
+
+void ClientConnection::incrementCachePosition() {
+    currentCachePosition++;
 }

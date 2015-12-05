@@ -15,16 +15,16 @@ int ServerConnection::getServerSocket() const {
     return serverSocket;
 }
 
-char *ServerConnection::getBuf() const {
+char *ServerConnection::getBuf() {
     return buf;
 }
 
-int ServerConnection::getByteInBuf(){
+int ServerConnection::getByteInBuf() {
     return byteInBuf;
 }
 
 ServerConnection::ServerConnection(int serverSocket, ClientConnection *c) {
-    state = ServerConnectionState::NEW_CONNECTION ;
+    state = NEW_SERVER_CONNECTION;
     this->serverSocket = serverSocket;
     memset(buf, 0, sizeof(buf));
     this->clientConnection = c;

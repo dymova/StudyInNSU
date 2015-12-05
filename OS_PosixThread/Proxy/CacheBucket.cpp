@@ -5,7 +5,7 @@
 #include "CacheBucket.h"
 
 CacheBucket::CacheBucket() {
-    isFull = false;
+    full = false;
 }
 
 void CacheBucket::addItem(char *buf, int size) {
@@ -14,4 +14,8 @@ void CacheBucket::addItem(char *buf, int size) {
 
 unsigned long CacheBucket::size() {
     return pagePieces.size();
+}
+
+std::pair<char *, int> CacheBucket::getItem(unsigned long position) {
+    return pagePieces.at(position);
 }

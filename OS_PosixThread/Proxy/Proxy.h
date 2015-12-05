@@ -54,6 +54,10 @@ private:
     bool isRightUrl(ClientConnection *c) const;
     bool connectWithServer(ClientConnection* c, char *string);
     void handleAnswer(ServerConnection *c);
+
+    void saveDataToCache(ServerConnection *c) const;
+
+    void copyDataToClientBuf(ServerConnection *c) const;
 };
 
 class IllegalArgumentException : public std::runtime_error

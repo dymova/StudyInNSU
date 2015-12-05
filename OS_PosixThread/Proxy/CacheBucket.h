@@ -9,19 +9,26 @@
 #include <utility>
 
 class CacheBucket {
+private:
+    bool full;
+    std::vector<std::pair<char *, int> > pagePieces;
 public:
+
     CacheBucket();
 
-    bool isFull;
-    std::vector<std::pair<char*, int>> pagePieces;
-
     void setIsFull(bool isFull) {
-        CacheBucket::isFull = isFull;
+        CacheBucket::full = isFull;
     }
 
-    void addItem(char*, int);
+    void addItem(char *, int);
 
     unsigned long size();
+
+    std::pair<char *, int> getItem(unsigned long position);
+
+    bool isFull() const {
+        return full;
+    }
 };
 
 
