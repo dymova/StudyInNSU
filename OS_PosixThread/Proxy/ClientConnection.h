@@ -1,7 +1,3 @@
-//
-// Created by nastya on 04.12.15.
-//
-
 #ifndef PROXY_CLIENTCONNECTION_H
 #define PROXY_CLIENTCONNECTION_H
 
@@ -9,25 +5,25 @@
 
 #define BUFSIZE 1024
 
-enum ClientConnectionState {NEW_CONNECTION, FROM_CACHE, FROM_SERVER, CLIENT_ERROR
+enum ClientConnectionState {
+    NEW_CONNECTION, FROM_CACHE, FROM_SERVER, CLIENT_ERROR
 };
 
 class ClientConnection {
 
-
 public:
     ClientConnection(int clientSocket);
 
-    char *getBuf() ;
-
-//    const char *getBuf() const {
-//        return buf;
-//    }
+    char *getBuf();
 
     int getByteInBuf();
+
     int setByteInBuf(int count);
+
     int getClientSocket() const;
+
     const ClientConnectionState &getState() const;
+
     char *getUrl() const;
 
 
@@ -36,32 +32,25 @@ public:
     void setState(const ClientConnectionState &state);
 
 
-    CacheBucket *getBucket() const {
-        return bucket;
-    }
+    CacheBucket *getBucket() const;
 
-    void setBucket(CacheBucket *bucket) {
-        ClientConnection::bucket = bucket;
-    }
+    void setBucket(CacheBucket *bucket);
 
-    ~ClientConnection();
+    unsigned long getCurrentCachePosition() const;
+
+    void incrementCachePosition();
 
 private:
     char buf[BUFSIZE];
     int byteInBuf;
     int clientSocket;
-    char* url;
-    CacheBucket* bucket;
+    char *url;
+    CacheBucket *bucket;
     unsigned long currentCachePosition;
 
     ClientConnectionState state;
 
-public:
-    unsigned long getCurrentCachePosition() const {
-        return currentCachePosition;
-    }
 
-    void incrementCachePosition();
 };
 
 

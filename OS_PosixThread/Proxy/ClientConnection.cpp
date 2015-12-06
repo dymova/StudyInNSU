@@ -1,7 +1,3 @@
-//
-// Created by nastya on 04.12.15.
-//
-
 #include <string.h>
 #include "ClientConnection.h"
 
@@ -28,15 +24,8 @@ int ClientConnection::getClientSocket() const {
     return clientSocket;
 }
 
-int ClientConnection::getByteInBuf(){
+int ClientConnection::getByteInBuf() {
     return byteInBuf;
-}
-
-
-
-
-ClientConnection::~ClientConnection() {
-    //todo free host and url but think about cache
 }
 
 void ClientConnection::setUrl(char *url) {
@@ -58,4 +47,18 @@ int ClientConnection::setByteInBuf(int count) {
 
 void ClientConnection::incrementCachePosition() {
     currentCachePosition++;
+}
+
+CacheBucket *ClientConnection::getBucket() const {
+    return bucket;
+
+}
+
+void ClientConnection::setBucket(CacheBucket *bucket) {
+    ClientConnection::bucket = bucket;
+
+}
+
+unsigned long ClientConnection::getCurrentCachePosition() const {
+    return currentCachePosition;
 }

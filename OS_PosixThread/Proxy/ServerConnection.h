@@ -1,7 +1,3 @@
-//
-// Created by nastya on 05.12.15.
-//
-
 #ifndef PROXY_SERVERCONNECTION_H
 #define PROXY_SERVERCONNECTION_H
 
@@ -10,7 +6,9 @@
 
 #define BUFSIZE 1024
 
-enum ServerConnectionState {NEW_SERVER_CONNECTION, EXPECTED_RESPONSE, CACHING_MODE, NOT_CACHING_MODE, SERVER_ERROR};
+enum ServerConnectionState {
+    NEW_SERVER_CONNECTION, EXPECTED_RESPONSE, CACHING_MODE, NOT_CACHING_MODE, SERVER_ERROR
+};
 
 class ServerConnection {
 private:
@@ -18,9 +16,8 @@ private:
     int serverSocket;
     char buf[BUFSIZE];
     int byteInBuf;
-    ClientConnection* clientConnection;
-    CacheBucket* cacheBucket;
-
+    ClientConnection *clientConnection;
+    CacheBucket *cacheBucket;
 
 
 public:
@@ -28,38 +25,25 @@ public:
     ServerConnection(int serverSocket, ClientConnection *c);
 
     const ServerConnectionState &getState() const;
-    int getServerSocket() const ;
 
-    char *getBuf() ;
+    int getServerSocket() const;
+
+    char *getBuf();
 
 
-//    const char *getBuf() const {
-//        return buf;
-//    }
-
-    ClientConnection *getClientConnection() {
-        return clientConnection;
-    }
+    ClientConnection *getClientConnection();
 
     int getByteInBuf();
 
-    int setByteInBuf(int byteInBuf) {
-        ServerConnection::byteInBuf = byteInBuf;
-        return byteInBuf;
-    }
+    int setByteInBuf(int byteInBuf);
 
-    void setState(const ServerConnectionState &state) {
-        ServerConnection::state = state;
-    }
+    void setState(const ServerConnectionState &state);
 
 
-    void setCacheBucket(CacheBucket *cacheBucket) {
-        ServerConnection::cacheBucket = cacheBucket;
-    }
+    void setCacheBucket(CacheBucket *cacheBucket);
 
-    CacheBucket *getCacheBucket() const {
-        return cacheBucket;
-    }
+
+    CacheBucket *getCacheBucket() const;
 };
 
 

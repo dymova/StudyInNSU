@@ -7,6 +7,24 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <utility>
+
+#include <sys/select.h>
+#include <stdio.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/types.h>
+
+#include	<time.h>
+#include	<netinet/in.h>
+#include	<fcntl.h>
+//#include	<signal.h>
+#include	<string.h>
+#include	<sys/uio.h>
+//#include    <assert.h>
+
+
+
+
 #include "Proxy.h"
 #include "ServerConnection.h"
 
@@ -131,11 +149,8 @@ void Proxy::fillMaskForServersConnections() {
          list_iterator != removedConnections.end(); ++list_iterator) {
         ServerConnection *removedConnection = *list_iterator;
         close(removedConnection->getServerSocket());
-//            if(removedConnection->getServerSocket() != -1) {
-//                close(removedConnection->getServerSocket());
-//            }
         serverConnections.remove(removedConnection);
-//            delete (removedConnection);
+        delete (removedConnection);
         std::cout << "drop server connection" << std::endl;
 
     }
@@ -189,7 +204,7 @@ void Proxy::checkServersReadfsAndWritefs() {
                         c->getClientConnection()->setState(CLIENT_ERROR);
                         c->setState(SERVER_ERROR);
                     } else {
-                        printf(">>ClientToServer: %s\n", c->getClientConnection()->getBuf());
+//                        printf(">>ClientToServer: %s\n", c->getClientConnection()->getBuf());
                         c->getClientConnection()->setByteInBuf(0);
                         memset(c->getClientConnection()->getBuf(), 0, BUFSIZE);
                         c->setState(EXPECTED_RESPONSE);
@@ -204,10 +219,10 @@ void Proxy::checkServersReadfsAndWritefs() {
                         c->setState(SERVER_ERROR);
                     } else {
                         handleAnswer(c);
-                        if(c->getState() == CACHING_MODE) {
+                        if (c->getState() == CACHING_MODE) {
                             saveDataToCache(c);
                             copyDataToClientBuf(c);
-                        } else if(c->getState() == NOT_CACHING_MODE) {
+                        } else if (c->getState() == NOT_CACHING_MODE) {
                             copyDataToClientBuf(c);
                         }
                     }
@@ -233,8 +248,6 @@ void Proxy::checkServersReadfsAndWritefs() {
                         c->getClientConnection()->setState(CLIENT_ERROR);
                         c->setState(SERVER_ERROR);
                     } else {
-//                        memcpy(c->getClientConnection()->getBuf(), c->getBuf(), (size_t) c->getByteInBuf());
-//                        c->getClientConnection()->setByteInBuf(c->getByteInBuf());
                         copyDataToClientBuf(c);
                     }
                 }
@@ -271,7 +284,7 @@ bool Proxy::isRightUrl(ClientConnection *c) const {
     int endIndex = (int) (tmp2 - tmp);
     size_t length = (size_t) (endIndex - 1);
 
-    char *url = (char *) calloc(length, sizeof(char)); //todo free memory
+    char *url = (char *) calloc(length, sizeof(char));
     strncpy(url, tmp + 1, length);
     c->setUrl(url);
     printf("url: %s\n", url);
@@ -286,22 +299,18 @@ bool Proxy::isRightRequest(ClientConnection *c) {
 
     if (NULL == strstr(c->getBuf(), "GET") && NULL == strstr(c->getBuf(), "HEAD")) {
         std::cout << "not supported method" << std::endl;
-//        write(c->getClientSocket(), HTTP_405_ERROR, strlen(HTTP_405_ERROR));
         write(c->getClientSocket(), HTTP_405_ERROR, sizeof(HTTP_405_ERROR));
         c->setState(CLIENT_ERROR);
         return false;
     }
     if (NULL == strstr(c->getBuf(), "HTTP/1.0")) {
         std::cout << "not supported protocol" << std::endl;
-//        write(c->getClientSocket(), HTTP_505_ERROR, strlen(HTTP_505_ERROR));
         write(c->getClientSocket(), HTTP_505_ERROR, sizeof(HTTP_505_ERROR));
         return false;
     }
-    strcat(c->getBuf(), "\n\n"); //todo check if it needed?
 
     if (!isRightUrl(c)) {
         std::cout << "error in url parsing" << std::endl;
-//        write(c->getClientSocket(), HTTP_400_ERROR, strlen(HTTP_400_ERROR));
         write(c->getClientSocket(), HTTP_400_ERROR, sizeof(HTTP_400_ERROR));
         return false;
     }
@@ -320,7 +329,6 @@ void Proxy::handleRequest(ClientConnection *c) {
         //check cache
         if (cache.find(c->getUrl()) == cache.end()) {
             c->setState(FROM_SERVER);
-            int status;
             if (!connectWithServer(c, host)) {
                 std::cout << "connect error" << std::endl;
                 c->setState(CLIENT_ERROR);
@@ -390,7 +398,7 @@ void Proxy::checkClientsReadfsAndWritefs() {
                 if (FD_ISSET(c->getClientSocket(), &writefs)) {
                     if (c->getCurrentCachePosition() < c->getBucket()->size()) {
                         std::pair<char *, int> pair = c->getBucket()->getItem(c->getCurrentCachePosition());
-                        int res = (int) write(c->getClientSocket(), pair.first, pair.second);
+                        int res = (int) write(c->getClientSocket(), pair.first, (size_t) pair.second);
                         if (res == -1) {
                             c->setState(CLIENT_ERROR);
                         } else {
@@ -411,8 +419,10 @@ void Proxy::checkClientsReadfsAndWritefs() {
                     } else {
                         c->setByteInBuf(0);
                     }
-                    printf("<<ServerTOClient: %s\n", c->getBuf());
+//                    printf("<<ServerTOClient: %s\n", c->getBuf());
                 }
+                break;
+            case CLIENT_ERROR:
                 break;
         }
 
@@ -425,7 +435,7 @@ void Proxy::handleAnswer(ServerConnection *c) {
     if (strstr(c->getBuf(), "200") != NULL) {
         c->setState(CACHING_MODE);
 
-        CacheBucket *bucket = new CacheBucket(); //todo free
+        CacheBucket *bucket = new CacheBucket();
         cache.insert(std::pair<char *, CacheBucket *>(c->getClientConnection()->getUrl(), bucket));
         c->setCacheBucket(bucket);
     } else {
@@ -433,3 +443,4 @@ void Proxy::handleAnswer(ServerConnection *c) {
     }
 
 }
+

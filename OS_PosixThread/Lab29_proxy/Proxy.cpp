@@ -13,9 +13,7 @@
 #include	<time.h>
 #include	<netinet/in.h>
 #include	<fcntl.h>
-#include	<netdb.h>
 //#include	<signal.h>
-#include	<string.h>
 #include	<sys/uio.h>
 //#include    <assert.h>
 
@@ -303,7 +301,7 @@ void Proxy::getUrl(Connection* c, char url[]) const {
         //todo send error
     }
     char* tmp2 = strchr(tmp+1, ' ');
-    if(tmp == NULL) {
+    if(tmp2 == NULL) {
         //todo send error
         std::cout<< "bad request 2" << std::endl;
     }

@@ -16,9 +16,7 @@ public:
 
     CacheBucket();
 
-    void setIsFull(bool isFull) {
-        CacheBucket::full = isFull;
-    }
+    void setIsFull(bool isFull);
 
     void addItem(char *, int);
 
@@ -26,9 +24,7 @@ public:
 
     std::pair<char *, int> getItem(unsigned long position);
 
-    bool isFull() const {
-        return full;
-    }
+    bool isFull() const;
 };
 
 

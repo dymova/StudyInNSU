@@ -37,9 +37,9 @@ public class Connection implements Runnable {
                 return null;
             }
             System.out.println("readLine:" + readLine);
-            if(!readLine.contains("GET")) {
-                return null;
-            }
+//            if(!readLine.contains("GET")) {
+//                return null;
+//            }
 
             String[] tokens = readLine.split(" ");
             URL url = new URL(tokens[1]);
@@ -61,7 +61,7 @@ public class Connection implements Runnable {
 
         int bytesReadNumber;
         while (-1 != (bytesReadNumber = serverInput.read(buf))) {
-            System.out.println("<<" + new String(buf));
+//            System.out.println("<<" + new String(buf));
             clientOutput.write(buf, 0, bytesReadNumber);
         }
 

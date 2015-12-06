@@ -1,7 +1,3 @@
-//
-// Created by nastya on 05.12.15.
-//
-
 #include <string.h>
 #include "ServerConnection.h"
 
@@ -29,4 +25,28 @@ ServerConnection::ServerConnection(int serverSocket, ClientConnection *c) {
     memset(buf, 0, sizeof(buf));
     this->clientConnection = c;
     cacheBucket = NULL;
+}
+
+ClientConnection *ServerConnection::getClientConnection() {
+    return clientConnection;
+}
+
+int ServerConnection::setByteInBuf(int byteInBuf) {
+    ServerConnection::byteInBuf = byteInBuf;
+    return byteInBuf;
+}
+
+void ServerConnection::setState(const ServerConnectionState &state) {
+    ServerConnection::state = state;
+
+}
+
+void ServerConnection::setCacheBucket(CacheBucket *cacheBucket) {
+    ServerConnection::cacheBucket = cacheBucket;
+
+}
+
+CacheBucket *ServerConnection::getCacheBucket() const {
+    return cacheBucket;
+
 }

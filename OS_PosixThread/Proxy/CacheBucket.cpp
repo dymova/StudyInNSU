@@ -1,7 +1,3 @@
-//
-// Created by nastya on 05.12.15.
-//
-
 #include "CacheBucket.h"
 
 CacheBucket::CacheBucket() {
@@ -18,4 +14,12 @@ unsigned long CacheBucket::size() {
 
 std::pair<char *, int> CacheBucket::getItem(unsigned long position) {
     return pagePieces.at(position);
+}
+
+bool CacheBucket::isFull() const {
+    return full;
+}
+
+void CacheBucket::setIsFull(bool isFull) {
+    CacheBucket::full = isFull;
 }
