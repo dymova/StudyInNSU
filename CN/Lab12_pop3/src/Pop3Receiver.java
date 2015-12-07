@@ -27,7 +27,7 @@ public class Pop3Receiver {
     private final int serverPort;
     private BufferedReader reader;
     private final Scanner scanner;
-    private OutputStream writer;
+    private OutputStream outputStream;
     private boolean isStopped = false;
 
     public Pop3Receiver(InetAddress address, int port) {
@@ -39,19 +39,19 @@ public class Pop3Receiver {
     public void start() {
         try(Socket socket = new Socket(serverAddress, serverPort)) {
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            writer = socket.getOutputStream();
+            outputStream = socket.getOutputStream();
 
             handleServerAnswer();
 
             System.out.println("Please, enter your login:");
             String line = scanner.nextLine();
-            writer.write((USER + line + END_LINE).getBytes());
+            outputStream.write((USER + line + END_LINE).getBytes());
 
             handleServerAnswer();
 
             System.out.println("Please, enter your password:");
             line = scanner.nextLine();
-            writer.write((PASS + line + END_LINE).getBytes());
+            outputStream.write((PASS + line + END_LINE).getBytes());
 
             System.out.println(USER_COMMANDS);
             while (!isStopped) {
@@ -86,13 +86,13 @@ public class Pop3Receiver {
     }
 
     private void handleQuitCommand() throws IOException {
-        writer.write(QUIT.getBytes());
+        outputStream.write(QUIT.getBytes());
         handleServerAnswer();
         isStopped = true;
     }
 
     private void handleShowCommand(String number) throws IOException {
-        writer.write((RETR + number + END_LINE).getBytes());
+        outputStream.write((RETR + number + END_LINE).getBytes());
         handleServerAnswer();
 
         String line;
@@ -103,7 +103,7 @@ public class Pop3Receiver {
     }
 
     private void handleListCommand() throws IOException {
-        writer.write((LIST).getBytes());
+        outputStream.write((LIST).getBytes());
         handleServerAnswer();
 
         String line;
