@@ -25,6 +25,7 @@
 #include "ThreadsBodies.h"
 
 Proxy::Proxy(char *port) {
+    cacheStorage = new CacheStorage();
 
     int listenPort = atoi(port);
     if (listenPort <= 0) {
@@ -81,7 +82,7 @@ void Proxy::start() {
 bool Proxy::createNewClientThread(int clientSocket) const {
     ClientThreadArgs* args = (ClientThreadArgs*) malloc(sizeof(ClientThreadArgs));
     args->clientSocket = clientSocket;
-    args->cache = cache;
+    args->cacheStorage = cacheStorage;
 
     pthread_t thread;
     int code;

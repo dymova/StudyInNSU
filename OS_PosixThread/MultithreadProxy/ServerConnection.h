@@ -25,7 +25,7 @@ private:
 
 public:
 
-    ServerConnection(int serverSocket, ClientConnection *c);
+    ServerConnection(int serverSocket, ClientConnection *c, char* url, int byteInBuf);
 
     const ServerConnectionState &getState() const;
 

@@ -70,6 +70,7 @@ bool ClientConnection::isRightUrl() {
 
     url = (char *) calloc(length, sizeof(char));
     strncpy(url, tmp + 1, length);
+    strncpy(url, tmp + 1, length);
     printf("url: %s\n", url);
 
     return true;
@@ -94,6 +95,8 @@ bool ClientConnection::isRightRequest() {
         return false;
     }
 
+    strcat(buf, "\n\n");
+    byteInBuf += 2;
     if (!isRightUrl()) {
         std::cout << "error in url parsing" << std::endl;
         write(clientSocket, HTTP_400_ERROR, sizeof(HTTP_400_ERROR));
@@ -104,7 +107,7 @@ bool ClientConnection::isRightRequest() {
     return true;
 }
 
-bool ClientConnection::handleRequest(std::map<char *, CacheBucket *, cmp_str> &pMap) {
+bool ClientConnection::handleRequest(CacheStorage *cacheStorage) {
     std::cout << buf << std::endl;
     if (!isRightRequest()) {
         return false;
@@ -115,8 +118,7 @@ bool ClientConnection::handleRequest(std::map<char *, CacheBucket *, cmp_str> &p
 
 
     //check cache
-    std::map<char *, CacheBucket *, cmp_str> cache = pMap;
-    if (cache.find(url) == cache.end()) {
+    if(!cacheStorage->contain(url)) {
         state = FROM_SERVER;
         if (!connectWithServer(host)) {
             std::cout << "connect error" << std::endl;
@@ -124,7 +126,7 @@ bool ClientConnection::handleRequest(std::map<char *, CacheBucket *, cmp_str> &p
         }
     } else {
         state = FROM_CACHE;
-        bucket = cache.find(url)->second;
+        bucket = cacheStorage->getBucket(url);
     }
     free(host);
     return true;

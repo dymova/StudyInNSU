@@ -8,6 +8,7 @@
 #include <map>
 #include <cstring>
 #include "CacheBucket.h"
+#include "CacheStorage.h"
 //#include "Proxy.h"
 
 #define BUFSIZE 1024
@@ -16,11 +17,7 @@ enum ClientConnectionState {
     FROM_CACHE, FROM_SERVER
 };
 
-struct cmp_str {
-    bool operator()(char const *a, char const *b) {
-        return std::strcmp(a, b) < 0;
-    }
-};
+
 
 class ClientConnection {
 
@@ -29,7 +26,7 @@ public:
 
     bool readRequest();
 
-    bool handleRequest(std::map<char *, CacheBucket *, cmp_str> &pMap);
+    bool handleRequest(CacheStorage *cacheStorage);
 
     bool isRightRequest();
 

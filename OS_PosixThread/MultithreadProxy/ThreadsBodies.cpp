@@ -15,14 +15,15 @@ void *exitClientConnectionThread(int clientSocket);
 
 void exitServerConnectionThread(ServerConnection *pConnection);
 
-bool createServerThread(int serverSocket, std::map<char *, CacheBucket *, cmp_str> &cache);
+bool createServerThread(int serverSocket, CacheStorage *cache, ClientConnection *pConnection);
 
 void *serverConnectionThreadBody(void *args);
 
 void *clientConnectionThreadBody(void *args) {
     ClientThreadArgs *threadArgs = (ClientThreadArgs *) args;
     int clientSocket = threadArgs->clientSocket;
-    std::map<char *, CacheBucket *, cmp_str> cache = threadArgs->cache;
+    CacheStorage* cacheStorage = threadArgs->cacheStorage;
+//    std::map<char *, CacheBucket *, cmp_str> cache = threadArgs->cache;
 
     ClientConnection *c = new ClientConnection(clientSocket);
 
@@ -30,18 +31,17 @@ void *clientConnectionThreadBody(void *args) {
         exitClientConnectionThread(clientSocket);
     }
 
-    if (!c->handleRequest(cache)) {
+    if (!c->handleRequest(cacheStorage)) {
         exitClientConnectionThread(clientSocket);
     }
 
-//    serverConnections.push_back(new ServerConnection(serverSocket, c));
-    //создать новый поток и в неё сервер соединение
-
     if (c->getState() == FROM_SERVER) {
-        createServerThread(c->getServerSocket(), cache);
+        createServerThread(c->getServerSocket(), cacheStorage, c);
     }
+    c->setByteInBuf(0);
 
-    while (true) {
+//    while (true) {
+    for (int i = 0; i < 10; ++i) {
         if (c->getState() == FROM_CACHE) {
             if (c->getCurrentCachePosition() < c->getBucket()->size()) {
                 std::pair<char *, int> pair = c->getBucket()->getItem(c->getCurrentCachePosition());
@@ -78,10 +78,17 @@ void *clientConnectionThreadBody(void *args) {
     free(args);
 }
 
-bool createServerThread(int serverSocket, std::map<char *, CacheBucket *, cmp_str> &cache) {
+bool createServerThread(int serverSocket, CacheStorage *cache, ClientConnection *pConnection) {
     ServerThreadArgs *args = (ServerThreadArgs *) malloc(sizeof(ServerThreadArgs));
     args->serverSocket = serverSocket;
-    args->cache = cache;
+    args->cacheStorage = cache;
+    args->clientConnection = pConnection;
+
+
+    args->url = pConnection->getBuf();
+    args->byteInBuf = pConnection->getByteInBuf();
+
+
 
     pthread_t thread;
     int code;
@@ -99,16 +106,16 @@ bool createServerThread(int serverSocket, std::map<char *, CacheBucket *, cmp_st
 void *serverConnectionThreadBody(void *args) {
     ServerThreadArgs *threadArgs = (ServerThreadArgs *) args;
     int serverSocket = threadArgs->serverSocket;
-    std::map<char *, CacheBucket *, cmp_str> cache = threadArgs->cache;
+    CacheStorage* cacheStorage = threadArgs->cacheStorage;
     ClientConnection *clientConnection = threadArgs->clientConnection;
+    char* url = threadArgs->url;
+    int byteInBuf = threadArgs->byteInBuf;
 
-    ServerConnection *sc = new ServerConnection(serverSocket, clientConnection);
+    ServerConnection *sc = new ServerConnection(serverSocket, clientConnection, url, byteInBuf);
 
     if (!sc->sendRequest()) {
         exitServerConnectionThread(sc);
     }
-
-    //handle answer -> change mode -> work -> exit
 
     if (!sc->receiveResponse()) {
         exitServerConnectionThread(sc);
@@ -118,9 +125,10 @@ void *serverConnectionThreadBody(void *args) {
 
     if (sc->getState() == CACHING_MODE) {
         CacheBucket *bucket = new CacheBucket();
-        cache.insert(std::pair<char *, CacheBucket *>
-                             (sc->getClientConnection()->getUrl(),
-                              bucket));
+        cacheStorage->insertNewBucket(std::pair<char *, CacheBucket *>
+                                              (sc->getClientConnection()->getUrl(),
+                                               bucket));
+
         sc->setCacheBucket(bucket);
         sc->saveDataToCache();
         sc->copyDataToClientBuf();
@@ -128,7 +136,8 @@ void *serverConnectionThreadBody(void *args) {
         sc->copyDataToClientBuf();
     }
 
-    while (true) {
+//    while (true) {
+    for (int i = 0; i < 10; ++i) {
         if(sc->getState() == CACHING_MODE) {
             if (0 == (sc->setByteInBuf((int) read(sc->getServerSocket(), sc->getBuf(),
                                                  BUFSIZE)))) {

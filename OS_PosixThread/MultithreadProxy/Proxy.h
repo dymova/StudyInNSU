@@ -7,7 +7,7 @@
 #include <stdexcept>
 #include "CacheBucket.h"
 #include "ClientConnection.h"
-
+#include "CacheStorage.h"
 
 
 class Proxy {
@@ -19,7 +19,7 @@ public:
 
 private:
     int listenSocket;
-    std::map<char *, CacheBucket *, cmp_str> cache;
+    CacheStorage *cacheStorage;
 
 
     bool createNewClientThread(int i) const;
@@ -48,14 +48,16 @@ public:
 
 typedef struct ClientThreadArgs {
     int clientSocket;
-    std::map<char *, CacheBucket *, cmp_str> cache;
+    CacheStorage* cacheStorage;
 
 }ClientThreadArgs;
 
 typedef struct ServerThreadArgs {
     int serverSocket;
-    std::map<char *, CacheBucket *, cmp_str> cache;
+    CacheStorage* cacheStorage;
     ClientConnection* clientConnection;
+    char* url;
+    int byteInBuf;
 }ServerThreadArgs;
 
 #endif //MULTITHREADPROXY_PROXY_H

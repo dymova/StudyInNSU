@@ -10,26 +10,30 @@
 #include "ServerConnection.h"
 
 
-const ServerConnectionState &ServerConnection::getState() const {
-    return state;
-}
-
-
-int ServerConnection::getServerSocket() const {
-    return serverSocket;
-}
-
-char *ServerConnection::getBuf() {
-    return buf;
-}
-
-
-ServerConnection::ServerConnection(int serverSocket, ClientConnection *c) {
+ServerConnection::ServerConnection(int serverSocket, ClientConnection *c, char* url, int byteInBuf) {
     state = NOT_CACHING_MODE;
     this->serverSocket = serverSocket;
     memset(buf, 0, sizeof(buf));
     this->clientConnection = c;
     cacheBucket = NULL;
+
+    memcpy(buf, url, (size_t) byteInBuf);
+    this->byteInBuf = byteInBuf;
+
+}
+
+
+const ServerConnectionState &ServerConnection::getState() const {
+    return state;
+}
+
+int ServerConnection::getServerSocket() const {
+    return serverSocket;
+}
+
+
+char *ServerConnection::getBuf() {
+    return buf;
 }
 
 ClientConnection *ServerConnection::getClientConnection() {
@@ -54,19 +58,21 @@ CacheBucket *ServerConnection::getCacheBucket() const {
 
 bool ServerConnection::sendRequest() {
 
-    int res = (int) write(serverSocket, clientConnection->getBuf(),
-                          (size_t) clientConnection->getByteInBuf());
+//    int res = (int) write(serverSocket, clientConnection->getBuf(),
+//                          (size_t) clientConnection->getByteInBuf());
+
+    int res = (int) write(serverSocket, buf,
+                          (size_t) byteInBuf);
+    byteInBuf = 0;
 
 //    int res = (int) send(serverSocket, clientConnection->getBuf(),
 //                         (size_t) clientConnection->getByteInBuf(), MSG_NOSIGNAL);
     if (res == -1) {
-//        c->getClientConnection()->setState(CLIENT_ERROR);
-//        c->setState(SERVER_ERROR);
         return false;
     } else {
-        printf(">>ClientToServer: %s\n", clientConnection->getBuf());
-        clientConnection->setByteInBuf(0);
-        memset(clientConnection->getBuf(), 0, BUFSIZE);
+        printf(">>ClientToServer: %s\n", buf);
+        byteInBuf = 0;
+        memset(buf, 0, BUFSIZE);
     }
     return true;
 }
