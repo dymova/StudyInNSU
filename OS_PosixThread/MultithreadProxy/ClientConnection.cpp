@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include "ClientConnection.h"
 #include "Proxy.h"
-#include "ServerConnection.h"
 
 
 
@@ -120,13 +119,17 @@ bool ClientConnection::handleRequest(CacheStorage *cacheStorage) {
     //check cache
     if(!cacheStorage->contain(url)) {
         state = FROM_SERVER;
+        std::cout << "FROM_SERVER" << std::endl;
         if (!connectWithServer(host)) {
             std::cout << "connect error" << std::endl;
             return false;
         }
     } else {
         state = FROM_CACHE;
+        std::cout << "FROM_CACHE" << std::endl;
         bucket = cacheStorage->getBucket(url);
+        std::cout << bucket->isFull() << std::endl;
+
     }
     free(host);
     return true;
@@ -134,6 +137,7 @@ bool ClientConnection::handleRequest(CacheStorage *cacheStorage) {
 
 bool ClientConnection::readRequest() {
     if (0 == (byteInBuf = (int) read(clientSocket, buf, BUFSIZE))) { //todo -1
+        std::cout << "read return 0" << std::endl;
         return false;
     }
     return true;
@@ -169,7 +173,7 @@ bool ClientConnection::connectWithServer(char *remoteHost) {
 
 
     if (-1 == (connect(serverSocket, (struct sockaddr *) serverAddr, sizeof(*serverAddr)))) {
-        perror("connent to server");
+        std::cout << "error connecto to server" << std::endl;
         return false;
     }
 
@@ -226,4 +230,8 @@ pthread_mutex_t * ClientConnection::getByteInBufMutex()  {
 
 pthread_cond_t * ClientConnection::getByteInBufCond() {
     return &byteInBufCond;
+}
+
+void ClientConnection::setState(const ClientConnectionState &state) {
+    ClientConnection::state = state;
 }

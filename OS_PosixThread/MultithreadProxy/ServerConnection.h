@@ -49,11 +49,13 @@ public:
 
     void handleAnswer();
 
-    void saveDataToCache() const;
+    void saveDataToCache();
 
     void copyDataToClientBuf();
 
-    };
+
+    int getByteInBuf() const;
+};
 
 
 #endif //MULTITHREADPROXY_SERVERCONNECTION_H

@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <malloc.h>
 #include <pthread.h>
+#include <iostream>
 #include "ServerConnection.h"
 
 
@@ -58,16 +59,13 @@ CacheBucket *ServerConnection::getCacheBucket() const {
 
 bool ServerConnection::sendRequest() {
 
-//    int res = (int) write(serverSocket, clientConnection->getBuf(),
-//                          (size_t) clientConnection->getByteInBuf());
-
     int res = (int) write(serverSocket, buf,
                           (size_t) byteInBuf);
     byteInBuf = 0;
-
 //    int res = (int) send(serverSocket, clientConnection->getBuf(),
 //                         (size_t) clientConnection->getByteInBuf(), MSG_NOSIGNAL);
     if (res == -1) {
+        std::cout << "write return -1 arter send request" << std::endl;
         return false;
     } else {
         printf(">>ClientToServer: %s\n", buf);
@@ -80,6 +78,7 @@ bool ServerConnection::sendRequest() {
 bool ServerConnection::receiveResponse() {
     if (0 == (byteInBuf = (int) read(serverSocket, buf,
                                          BUFSIZE))) {
+        std::cout << "read return 0 arfet receiveResponse" << std::endl;
         return false;
     }
     return true;
@@ -88,22 +87,27 @@ bool ServerConnection::receiveResponse() {
 void ServerConnection::handleAnswer() {
     if (strstr(buf, "200") != NULL) {
         state = CACHING_MODE;
-
-
     } else {
         state = NOT_CACHING_MODE;
     }
 }
 
-void ServerConnection::saveDataToCache() const {
+void ServerConnection::saveDataToCache() {
     char *newItem = (char *) malloc(byteInBuf * sizeof(char));
-    memcpy(newItem, buf, (size_t) byteInBuf);
-    cacheBucket->addItem(newItem, byteInBuf);
+    if(newItem == NULL) {
+        std::cout << "change state to NOT_CACHINGMODE" << std::endl;
+        state = NOT_CACHING_MODE;
+    } else {
+        memcpy(newItem, buf, (size_t) byteInBuf);
+        cacheBucket->addItem(newItem, byteInBuf);
+    }
 }
 
 void ServerConnection::copyDataToClientBuf() {
     pthread_mutex_lock(clientConnection->getByteInBufMutex());
-    while (clientConnection->getByteInBuf() != 0) {
+    while (clientConnection->getByteInBuf() != 0
+           && clientConnection->getState() != CLIENT_EXIT) {
+        std::cout << "wait while client read from buffer" << std::endl;
         pthread_cond_wait(clientConnection->getByteInBufCond(), clientConnection->getByteInBufMutex());
     }
     memcpy(clientConnection->getBuf(), buf, (size_t) byteInBuf);
@@ -112,4 +116,8 @@ void ServerConnection::copyDataToClientBuf() {
     byteInBuf = 0;
     pthread_cond_signal(clientConnection->getByteInBufCond());
     pthread_mutex_unlock(clientConnection->getByteInBufMutex());
+}
+
+int ServerConnection::getByteInBuf() const {
+    return byteInBuf;
 }

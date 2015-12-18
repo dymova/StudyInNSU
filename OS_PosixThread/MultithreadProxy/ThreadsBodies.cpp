@@ -6,12 +6,12 @@
 #include <unistd.h>
 #include <iostream>
 #include <sys/socket.h>
+#include <errno.h>
 #include "ThreadsBodies.h"
 #include "Proxy.h"
-#include "ClientConnection.h"
 #include "ServerConnection.h"
 
-void *exitClientConnectionThread(int clientSocket);
+void *exitClientConnectionThread(ClientConnection * c);
 
 void exitServerConnectionThread(ServerConnection *pConnection);
 
@@ -23,16 +23,15 @@ void *clientConnectionThreadBody(void *args) {
     ClientThreadArgs *threadArgs = (ClientThreadArgs *) args;
     int clientSocket = threadArgs->clientSocket;
     CacheStorage* cacheStorage = threadArgs->cacheStorage;
-//    std::map<char *, CacheBucket *, cmp_str> cache = threadArgs->cache;
 
     ClientConnection *c = new ClientConnection(clientSocket);
 
     if (!c->readRequest()) {
-        exitClientConnectionThread(clientSocket);
+        exitClientConnectionThread(c);
     }
 
     if (!c->handleRequest(cacheStorage)) {
-        exitClientConnectionThread(clientSocket);
+        exitClientConnectionThread(c);
     }
 
     if (c->getState() == FROM_SERVER) {
@@ -40,22 +39,24 @@ void *clientConnectionThreadBody(void *args) {
     }
     c->setByteInBuf(0);
 
-//    while (true) {
-    for (int i = 0; i < 10; ++i) {
+
+    while (true) {
         if (c->getState() == FROM_CACHE) {
             if (c->getCurrentCachePosition() < c->getBucket()->size()) {
                 std::pair<char *, int> pair = c->getBucket()->getItem(c->getCurrentCachePosition());
                 int res = (int) write(c->getClientSocket(), pair.first, (size_t) pair.second);
 //                int res = (int) send(c->getClientSocket(), pair.first, (size_t) pair.second, MSG_NOSIGNAL);
                 if (res == -1) {
-                    exitClientConnectionThread(c->getClientSocket());
+                    exitClientConnectionThread(c);
                 } else {
                     c->incrementCachePosition();
                     if (c->getCurrentCachePosition() == c->getBucket()->size() && c->getBucket()->isFull()) {
-                        exitClientConnectionThread(c->getClientSocket());
+                        exitClientConnectionThread(c);
                     }
                 }
 
+            } else if(c->getCurrentCachePosition() == c->getBucket()->size() && !c->getBucket()->isFull()) {
+                c->getBucket()->waitData(c->getCurrentCachePosition());
             }
         } else if (c->getState() == FROM_SERVER) {
             pthread_mutex_lock(c->getByteInBufMutex());
@@ -65,12 +66,14 @@ void *clientConnectionThreadBody(void *args) {
             int res = (int) write(c->getClientSocket(), c->getBuf(), (size_t) c->getByteInBuf());
 //            int res = (int) send(c->getClientSocket(), c->getBuf(), (size_t) c->getByteInBuf(), MSG_NOSIGNAL);
             if (res == -1) {
-                exitClientConnectionThread(c->getClientSocket());
+                printf("write error: %s\n", strerror(errno));
+                exitClientConnectionThread(c);
             } else {
                 c->setByteInBuf(0);
+                memset(c->getBuf(), 0, sizeof(c->getBuf()));
             }
             pthread_cond_signal(c->getByteInBufCond());
-            printf("<<ServerTOClient: %s\n", c->getBuf());
+            printf("<<ServerTOClient%d:%d: %s\n", c->getServerSocket(), c->getByteInBuf(), c->getBuf());
             pthread_mutex_unlock(c->getByteInBufMutex());
         }
     }
@@ -84,9 +87,9 @@ bool createServerThread(int serverSocket, CacheStorage *cache, ClientConnection 
     args->cacheStorage = cache;
     args->clientConnection = pConnection;
 
-
-    args->url = pConnection->getBuf();
     args->byteInBuf = pConnection->getByteInBuf();
+    args->url = (char*) malloc(args->byteInBuf * sizeof(char));
+    memcpy(args->url, pConnection->getBuf(), args->byteInBuf);
 
 
 
@@ -108,20 +111,29 @@ void *serverConnectionThreadBody(void *args) {
     int serverSocket = threadArgs->serverSocket;
     CacheStorage* cacheStorage = threadArgs->cacheStorage;
     ClientConnection *clientConnection = threadArgs->clientConnection;
-    char* url = threadArgs->url;
+
+    char*savedUrl =  threadArgs->url;
     int byteInBuf = threadArgs->byteInBuf;
 
-    ServerConnection *sc = new ServerConnection(serverSocket, clientConnection, url, byteInBuf);
+
+    ServerConnection *sc = new ServerConnection(serverSocket, clientConnection, savedUrl, byteInBuf);
 
     if (!sc->sendRequest()) {
         exitServerConnectionThread(sc);
     }
 
+    std::cout << "send request" << std::endl;
+
+
     if (!sc->receiveResponse()) {
         exitServerConnectionThread(sc);
     }
+    std::cout << "receive response" << std::endl;
 
     sc->handleAnswer();
+    std::cout << "handle answer" << std::endl;
+
+    int byteInResponse = sc->getByteInBuf();
 
     if (sc->getState() == CACHING_MODE) {
         CacheBucket *bucket = new CacheBucket();
@@ -135,40 +147,60 @@ void *serverConnectionThreadBody(void *args) {
     } else {
         sc->copyDataToClientBuf();
     }
+    std::cout << "send response" << std::endl;
 
-//    while (true) {
-    for (int i = 0; i < 10; ++i) {
+    if(byteInResponse < BUFSIZE) {
+        exitServerConnectionThread(sc);
+    }
+
+    while (true) {
         if(sc->getState() == CACHING_MODE) {
-            if (0 == (sc->setByteInBuf((int) read(sc->getServerSocket(), sc->getBuf(),
+            if (0 >= (sc->setByteInBuf((int) read(sc->getServerSocket(), sc->getBuf(),
                                                  BUFSIZE)))) {
+                std::cout << "read return 0 in cahching mode handle" << std::endl;
+                if(byteInBuf == 0) {
+                    sc->getCacheBucket()->setIsFull(true);
+                }
                 exitServerConnectionThread(sc);
-                sc->getCacheBucket()->setIsFull(true);
             } else {
                 sc->saveDataToCache();
                 sc->copyDataToClientBuf();
             }
         } else if(sc->getState() == NOT_CACHING_MODE) {
-            if (0 == (sc->setByteInBuf((int) read(sc->getServerSocket(), sc->getBuf(),
+            if (0 >= (sc->setByteInBuf((int) read(sc->getServerSocket(), sc->getBuf(),
                                                  BUFSIZE)))) {
-             exitServerConnectionThread(sc);
+                perror("read from socket in not_caching_mode");
+                printf("read error: %s\n", strerror(errno));
+
+                exitServerConnectionThread(sc);
             } else {
                 sc->copyDataToClientBuf();
             }
         }
+//        if(sc->getByteInBuf() < BUFSIZE) {
+//            exitServerConnectionThread(sc);
+//        }
+
     }
 
 }
 
 void exitServerConnectionThread(ServerConnection *c) {
     close(c->getClientConnection()->getClientSocket());
+    free(c->getClientConnection());
     close(c->getServerSocket());
+    free(c);
     std::cout << "drop server connection" << std::endl;
     pthread_exit(NULL);
 }
 
 
-void *exitClientConnectionThread(int clientSocket) {
-    close(clientSocket);
+void *exitClientConnectionThread(ClientConnection *c) {
+    close(c->getClientSocket());
+    c->setState(CLIENT_EXIT);
+    pthread_mutex_lock(c->getByteInBufMutex());
+    pthread_cond_signal(c->getByteInBufCond());
+    pthread_mutex_unlock(c->getByteInBufMutex());
     std::cout << "drop client connection" << std::endl;
     pthread_exit(NULL);
 }

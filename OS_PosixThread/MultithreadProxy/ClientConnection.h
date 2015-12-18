@@ -14,7 +14,7 @@
 #define BUFSIZE 1024
 
 enum ClientConnectionState {
-    FROM_CACHE, FROM_SERVER
+    FROM_CACHE, FROM_SERVER, CLIENT_EXIT
 };
 
 
@@ -59,6 +59,9 @@ public:
     pthread_mutex_t * getByteInBufMutex() ;
 
     pthread_cond_t * getByteInBufCond() ;
+
+
+    void setState(const ClientConnectionState &state);
 
 private:
     int clientSocket;
