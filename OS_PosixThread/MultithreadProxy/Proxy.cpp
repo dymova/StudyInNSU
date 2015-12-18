@@ -47,10 +47,6 @@ Proxy::Proxy(char *port) {
     listenSocket = socket(listenInfo->ai_family,
                           listenInfo->ai_socktype,
                           listenInfo->ai_protocol);
-//    if (-1 == checkSocket(listenSocket)) {
-//        throw new ConstructorProxyException("checkSocket");
-//    }
-
 
     int val = 1;
     if (-1 == setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(int))) {

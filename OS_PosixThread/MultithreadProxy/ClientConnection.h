@@ -11,10 +11,11 @@
 #include "CacheStorage.h"
 //#include "Proxy.h"
 
-#define BUFSIZE 1024
+//#define BUFSIZE 1024
+#define BUFSIZE 4096
 
 enum ClientConnectionState {
-    FROM_CACHE, FROM_SERVER, CLIENT_EXIT
+    FROM_CACHE, FROM_SERVER, CLIENT_EXIT, CLIENT_ERROR
 };
 
 

@@ -7,6 +7,5 @@
 
 void *clientConnectionThreadBody(void *param);
 
-void *exitClientConnectionThread(int clientSocket);
 
 #endif //MULTITHREADPROXY_THREADSBODIES_H

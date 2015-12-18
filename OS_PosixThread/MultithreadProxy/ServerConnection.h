@@ -8,7 +8,8 @@
 
 #include "ClientConnection.h"
 
-#define BUFSIZE 1024
+//#define BUFSIZE 1024
+#define BUFSIZE 4096
 
 enum ServerConnectionState {
     CACHING_MODE, NOT_CACHING_MODE

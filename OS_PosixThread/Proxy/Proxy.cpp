@@ -198,8 +198,10 @@ void Proxy::checkServersReadfsAndWritefs() {
             case NEW_SERVER_CONNECTION:
                 if (FD_ISSET(c->getServerSocket(), &writefs)) {
 
-                    int res = (int) write(c->getServerSocket(), c->getClientConnection()->getBuf(),
-                                          (size_t) c->getClientConnection()->getByteInBuf());
+//                    int res = (int) write(c->getServerSocket(), c->getClientConnection()->getBuf(),
+//                                          (size_t) c->getClientConnection()->getByteInBuf());
+                    int res = (int) send(c->getServerSocket(), c->getClientConnection()->getBuf(),
+                                          (size_t) c->getClientConnection()->getByteInBuf(), MSG_NOSIGNAL);
                     if (res == -1) {
                         c->getClientConnection()->setState(CLIENT_ERROR);
                         c->setState(SERVER_ERROR);
@@ -299,19 +301,22 @@ bool Proxy::isRightRequest(ClientConnection *c) {
 
     if (NULL == strstr(c->getBuf(), "GET") && NULL == strstr(c->getBuf(), "HEAD")) {
         std::cout << "not supported method" << std::endl;
-        write(c->getClientSocket(), HTTP_405_ERROR, sizeof(HTTP_405_ERROR));
+//        write(c->getClientSocket(), HTTP_405_ERROR, sizeof(HTTP_405_ERROR));
+        send(c->getClientSocket(), HTTP_405_ERROR, sizeof(HTTP_405_ERROR), MSG_NOSIGNAL);
         c->setState(CLIENT_ERROR);
         return false;
     }
     if (NULL == strstr(c->getBuf(), "HTTP/1.0")) {
         std::cout << "not supported protocol" << std::endl;
-        write(c->getClientSocket(), HTTP_505_ERROR, sizeof(HTTP_505_ERROR));
+//        write(c->getClientSocket(), HTTP_505_ERROR, sizeof(HTTP_505_ERROR));
+        send(c->getClientSocket(), HTTP_505_ERROR, sizeof(HTTP_505_ERROR), MSG_NOSIGNAL);
         return false;
     }
 
     if (!isRightUrl(c)) {
         std::cout << "error in url parsing" << std::endl;
-        write(c->getClientSocket(), HTTP_400_ERROR, sizeof(HTTP_400_ERROR));
+//        write(c->getClientSocket(), HTTP_400_ERROR, sizeof(HTTP_400_ERROR));
+        send(c->getClientSocket(), HTTP_400_ERROR, sizeof(HTTP_400_ERROR), MSG_NOSIGNAL);
         return false;
     }
 
@@ -398,7 +403,8 @@ void Proxy::checkClientsReadfsAndWritefs() {
                 if (FD_ISSET(c->getClientSocket(), &writefs)) {
                     if (c->getCurrentCachePosition() < c->getBucket()->size()) {
                         std::pair<char *, int> pair = c->getBucket()->getItem(c->getCurrentCachePosition());
-                        int res = (int) write(c->getClientSocket(), pair.first, (size_t) pair.second);
+//                        int res = (int) write(c->getClientSocket(), pair.first, (size_t) pair.second);
+                        int res = (int) send(c->getClientSocket(), pair.first, (size_t) pair.second, MSG_NOSIGNAL);
                         if (res == -1) {
                             c->setState(CLIENT_ERROR);
                         } else {
@@ -413,7 +419,8 @@ void Proxy::checkClientsReadfsAndWritefs() {
                 break;
             case FROM_SERVER:
                 if (c->getByteInBuf() > 0 && FD_ISSET(c->getClientSocket(), &writefs)) {
-                    int res = (int) write(c->getClientSocket(), c->getBuf(), (size_t) c->getByteInBuf());
+//                    int res = (int) write(c->getClientSocket(), c->getBuf(), (size_t) c->getByteInBuf());
+                    int res = (int) send(c->getClientSocket(), c->getBuf(), (size_t) c->getByteInBuf(), MSG_NOSIGNAL);
                     if (res == -1) {
                         c->setState(CLIENT_ERROR);
                     } else {

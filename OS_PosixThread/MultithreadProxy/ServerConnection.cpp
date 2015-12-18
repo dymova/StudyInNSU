@@ -8,6 +8,7 @@
 #include <malloc.h>
 #include <pthread.h>
 #include <iostream>
+#include <errno.h>
 #include "ServerConnection.h"
 
 
@@ -76,9 +77,9 @@ bool ServerConnection::sendRequest() {
 }
 
 bool ServerConnection::receiveResponse() {
-    if (0 == (byteInBuf = (int) read(serverSocket, buf,
+    if (0 >= (byteInBuf = (int) read(serverSocket, buf,
                                          BUFSIZE))) {
-        std::cout << "read return 0 arfet receiveResponse" << std::endl;
+        printf("read response error: %s\n", strerror(errno));
         return false;
     }
     return true;

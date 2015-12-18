@@ -34,6 +34,13 @@ private:
 
     std::map<char *, CacheBucket *, cmp_str> cache;
 
+
+public:
+    const std::map<char *, CacheBucket *, cmp_str> &getCache() const {
+        return cache;
+    }
+
+private:
     int checkSocket(int socketId);
 
     void fillMasksForSelect();

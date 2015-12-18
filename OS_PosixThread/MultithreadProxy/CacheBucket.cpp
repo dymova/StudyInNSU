@@ -7,7 +7,8 @@
 #include <stdlib.h>
 #include "CacheBucket.h"
 
-#define BUFSIZE 1024
+//#define BUFSIZE 1024
+#define BUFSIZE 4096
 
 CacheBucket::CacheBucket() {
     full = false;
